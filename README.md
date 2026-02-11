@@ -4,20 +4,20 @@
 
 This project simulates LEO satellite communication performance using real Starlink TLE data, computing:
 
-Satellite position from TLE
+- Satellite position from TLE
 
-UE–satellite geometry
+- UE–satellite geometry
 
-Elevation angles
+- Elevation angles
 
-Slant ranges
+- Slant ranges
 
-Per-beam UL/DL data rates
+- Per-beam UL/DL data rates
 
-SNR calculations
+- SNR calculations
 
-Propagation & transmission delays
+- Propagation & transmission delays
 
-Orbit classification
+- Orbit classification
 
 The simulator is designed for research and academic analysis of NTN (Non-Terrestrial Networks) and LEO constellation systems such as Starlink.
