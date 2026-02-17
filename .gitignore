@@ -1,0 +1,18 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environments (so you don't upload your 200MB .venv)
+.venv/
+venv/
+ENV/
+
+# Data and Results (since you're generating CSVs and Parquets)
+*.csv
+*.parquet
+*.log
+
+# IDE specific files
+.vscode/
+.idea/
