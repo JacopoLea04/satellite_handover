@@ -146,7 +146,7 @@ def main():
     sc9 = True
     sc6 = False
     if sc9:
-        beam_footprint_m = 100_000  # beam diameter [m]
+        beam_footprint_m = 50_000  # beam diameter [m]
         eirp_gt = -7                # UL EIRP [dBW]
         gt_sat = 1.1                # UL G/T satellite [dB/K]
         eirp_sat = 48.8             # DL EIRP [dBW]
@@ -156,7 +156,7 @@ def main():
         frequency_dl = 2            # DL carrier frequency [GHz]
         frequency_ul = 2            # UL carrier frequency [GHz]
     elif sc6:
-        beam_footprint_m = 100_000  # beam diameter [m]
+        beam_footprint_m = 20_000  # beam diameter [m]
         eirp_gt = 46.2              # UL EIRP [dBW]
         gt_sat = 13                 # UL G/T satellite [dB/K]
         eirp_sat = 30               # DL EIRP [dBW]
