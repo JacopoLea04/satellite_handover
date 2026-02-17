@@ -39,14 +39,18 @@ class ChannelParameters:
         return distance
     
     @staticmethod
-    def within_range(observer_lat, observer_lon, satellite_lat, satellite_lon, range_km):
+    def within_range(observer_lat, observer_lon, satellite_lat, satellite_lon, range_m):
         """
         Determines if the satellite is within the given range from the observer.
-        This method uses range for Low LEO, LEO, MEO, GEO based on input range_km.
+        This method uses range for Low LEO, LEO, MEO, GEO based on input range_m.
         """
-
+        range_km = range_m / 1000  # Convert range to kilometers
         delta_x = math.degrees(range_km / ChannelParameters.EARTH_RADIUS_KM)
         delta_y = delta_x * abs(math.cos(math.radians(observer_lat)))
+        # print("\n=== ChannelParameters::within_range ===")
+        # print("range_km: {:.2f} km".format(range_km))
+        # print("\nChecking satellite at ({:.4f}, {:.4f}) against observer at ({:.4f}, {:.4f}) with range {:.2f} km".format(satellite_lat, satellite_lon, observer_lat, observer_lon, range_km))
+        # print("Calculated deltas: delta_x = {:.4f} degrees, delta_y = {:.4f} degrees".format(delta_x, delta_y))
 
         if observer_lat - delta_x < satellite_lat < observer_lat + delta_x:
             if observer_lon - delta_y < satellite_lon < observer_lon + delta_y:
@@ -202,6 +206,8 @@ class ChannelParameters:
         radius_ring2 = (3/2) * beam_footprint
         radius_ring3 = 2 * beam_footprint
 
+        # print(f"radii: ring1 ({radius_ring1:.2f}m), ring2 ({radius_ring2:.2f}m), ring3 ({radius_ring3:.2f}m)")
+
         # Generate coordinates around device
         coordinates = []
         coordinates.append((0, 0, 0))
@@ -238,7 +244,7 @@ class ChannelParameters:
     
     @staticmethod
     def calculate_beam_rates(device_lat, device_lon, satellite_lat, satellite_lon, elevation_angle_list, slant_range_list,
-                        eirp_gt, eirp_satellite, gain_to_noise_gt, gain_to_noise_satellite, bandwidth):
+                        eirp_gt, eirp_satellite, gain_to_noise_gt, gain_to_noise_satellite, frequency_dl, frequency_ul, bandwidth_dl, bandwidth_ul):
         """
         Computes uplink and downlink data rates for multiple link conditions.
         
@@ -252,7 +258,8 @@ class ChannelParameters:
             slant_range_list: List of corresponding slant ranges
             eirp_gt, eirp_satellite: Effective Isotropic Radiated Powers
             gain_to_noise_gt, gain_to_noise_satellite: G/T values
-            bandwidth: Channel bandwidth in Hz
+            frequency_dl, frequency_ul: Carrier frequencies in GHz
+            bandwidth_dl, bandwidth_ul: Channel bandwidths in Hz
             
         Returns:
             Tuple of (uplink_rates_list, downlink_rates_list) in Mbps
@@ -265,7 +272,7 @@ class ChannelParameters:
 
             # Instantiate the channel object
             comm_channel = Channel(device_lat, device_lon, satellite_lat, satellite_lon, slant_range, elevation_angle,
-                                eirp_gt, eirp_satellite, gain_to_noise_gt, gain_to_noise_satellite, bandwidth)
+                                eirp_gt, eirp_satellite, gain_to_noise_gt, gain_to_noise_satellite, frequency_dl, frequency_ul, bandwidth_dl, bandwidth_ul)
 
             # Compute uplink and downlink rates in Mbps
             ul_rate = comm_channel.compute_ul_rate() / 10**6
@@ -277,14 +284,14 @@ class ChannelParameters:
         return ul_rate_list, dl_rate_list
     
     def calculate_ue_rate(device_lat, device_lon, satellite_lat, satellite_lon, elevation_angle, slant_range,
-                        eirp_gt, eirp_satellite, gain_to_noise_gt, gain_to_noise_satellite, bandwidth):
+                        eirp_gt, eirp_satellite, gain_to_noise_gt, gain_to_noise_satellite, frequency_dl, frequency_ul, bandwidth_dl, bandwidth_ul):
         """
         Calculates uplink and downlink rates based on various parameters.
         """
 
         # Instantiate the channel object
         comm_channel = Channel(device_lat, device_lon, satellite_lat, satellite_lon, slant_range, elevation_angle,
-                            eirp_gt, eirp_satellite, gain_to_noise_gt, gain_to_noise_satellite, bandwidth)
+                            eirp_gt, eirp_satellite, gain_to_noise_gt, gain_to_noise_satellite, frequency_dl, frequency_ul, bandwidth_dl, bandwidth_ul)
 
         # Compute uplink and downlink rates in Mbps
         ul_rate = comm_channel.compute_ul_rate() / 10**6

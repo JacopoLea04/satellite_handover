@@ -11,7 +11,7 @@ from datetime import datetime
 # =========================================================
 # 1. LOAD TLE FILE
 # =========================================================
-with open('base_script/Starlink_TLE.txt', 'r') as f:
+with open('Starlink_TLE.txt', 'r') as f:
     lines = [l.strip() for l in f.readlines()]
 
 beam_footprint_m = 200_000  # 200 km
@@ -70,13 +70,16 @@ else:
     print("\nNo satellite within range.")
 
 # =========================================================
-# 5. LINK BUDGET PARAMETERS (SC6)
+# 5. LINK BUDGET PARAMETERS (SC9)
 # =========================================================
-eirp_gt = 45.01            # UL EIRP [dBW]
-gt_sat = 5.0               # UL G/T satellite
-eirp_sat = 36.02           # DL EIRP [dBW]
-gt_ue = 21.44              # DL G/T UE
-bandwidth = 400e6          # 400 MHz
+eirp_gt = -7                # UL EIRP [dBW]
+gt_sat = 1.1                # UL G/T satellite [dB/K]
+eirp_sat = 48.8             # DL EIRP [dBW]
+gt_ue = -31.6               # DL G/T UE [dB/K]
+bandwidth_dl = 30e6         # 30 MHz DL bandwidth [MHz]
+bandwidth_ul = 0.4e6        # UL bandwidth [MHz]
+frequency_dl = 2            # DL carrier frequency [GHz]
+frequency_ul = 2            # UL carrier frequency [GHz]
 
 print("\nLink budget parameters loaded")
 
@@ -139,7 +142,10 @@ ul_rates, dl_rates = ChannelParameters.calculate_beam_rates(
     eirp_sat,
     gt_ue,
     gt_sat,
-    bandwidth
+    frequency_dl,
+    frequency_ul,
+    bandwidth_dl,
+    bandwidth_ul
 )
 
 print(f"UL rates (Mbps): {np.round(ul_rates, 2)}")
@@ -160,7 +166,10 @@ ul_rate, dl_rate, ul_snr, dl_snr = ChannelParameters.calculate_ue_rate(
     eirp_sat,
     gt_ue,
     gt_sat,
-    bandwidth
+    frequency_dl,
+    frequency_ul,
+    bandwidth_dl,
+    bandwidth_ul
 )
 
 print(f"UL rate: {ul_rate:.2f} Mbps   SNR: {ul_snr:.2f} dB")
