@@ -4,6 +4,7 @@ class Satellite:
     def __init__(self, name, tle_data):
         self.name = name
         self.tle_data = tle_data
+        self.load = 0  # Initialize load to 0
 
     def get_position(self, time):
         ts = load.timescale()
@@ -18,3 +19,11 @@ class Satellite:
         height = subpoint.elevation.m
 
         return latitude, longitude, height
+    
+    def update_load(self):
+        self.load += 1
+
+    def get_rate(self, frame, time):
+        # TODO
+        # Example: equally divide the total available rate among all connected UEs
+        return self.get_max_rate(frame, time) / self.load if self.load > 0 else 0
