@@ -52,7 +52,7 @@ class Channel:
     #BANDWIDTH = 10*(10**6) # Bandwith [Hz]
     FSPL_CONSTANT = 92.45
 
-    ATTENUATION_PERCENTAGE = 0
+    ATTENUATION_PERCENTAGE = 0.1  # Atmospheric attenuation percentage (0.1 for clear sky, can be adjusted based on conditions)
     GAS = True
     RAIN = False
     SCINTILLATION = True
