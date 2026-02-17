@@ -72,14 +72,29 @@ else:
 # =========================================================
 # 5. LINK BUDGET PARAMETERS (SC9)
 # =========================================================
-eirp_gt = -7                # UL EIRP [dBW]
-gt_sat = 1.1                # UL G/T satellite [dB/K]
-eirp_sat = 48.8             # DL EIRP [dBW]
-gt_ue = -31.6               # DL G/T UE [dB/K]
-bandwidth_dl = 30e6         # 30 MHz DL bandwidth [MHz]
-bandwidth_ul = 0.4e6        # UL bandwidth [MHz]
-frequency_dl = 2            # DL carrier frequency [GHz]
-frequency_ul = 2            # UL carrier frequency [GHz]
+
+sc9 = True
+sc6 = False
+if sc9:
+    eirp_gt = -7                # UL EIRP [dBW]
+    gt_sat = 1.1                # UL G/T satellite [dB/K]
+    eirp_sat = 48.8             # DL EIRP [dBW]
+    gt_ue = -31.6               # DL G/T UE [dB/K]
+    bandwidth_dl = 30e6         # 30 MHz DL bandwidth [MHz]
+    bandwidth_ul = 0.4e6        # UL bandwidth [MHz]
+    frequency_dl = 2            # DL carrier frequency [GHz]
+    frequency_ul = 2            # UL carrier frequency [GHz]
+elif sc6:
+    eirp_gt = 46.2              # UL EIRP [dBW]
+    gt_sat = 13                 # UL G/T satellite [dB/K]
+    eirp_sat = 30               # DL EIRP [dBW]
+    gt_ue = 15.9                # DL G/T UE [dB/K]
+    bandwidth_dl = 400e6        # DL bandwidth [MHz]
+    bandwidth_ul = 400e6        # UL bandwidth [MHz]
+    frequency_dl = 20           # DL carrier frequency [GHz]
+    frequency_ul = 30           # UL carrier frequency [GHz]
+else:
+    print("\nNo scenario selected. Please set sc9 or sc6 to True.")
 
 print("\nLink budget parameters loaded")
 
@@ -145,7 +160,9 @@ ul_rates, dl_rates = ChannelParameters.calculate_beam_rates(
     frequency_dl,
     frequency_ul,
     bandwidth_dl,
-    bandwidth_ul
+    bandwidth_ul,
+    sc6,
+    sc9
 )
 
 print(f"UL rates (Mbps): {np.round(ul_rates, 2)}")
@@ -169,7 +186,9 @@ ul_rate, dl_rate, ul_snr, dl_snr = ChannelParameters.calculate_ue_rate(
     frequency_dl,
     frequency_ul,
     bandwidth_dl,
-    bandwidth_ul
+    bandwidth_ul,
+    sc6,
+    sc9
 )
 
 print(f"UL rate: {ul_rate:.2f} Mbps   SNR: {ul_snr:.2f} dB")

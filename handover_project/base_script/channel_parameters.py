@@ -244,7 +244,7 @@ class ChannelParameters:
     
     @staticmethod
     def calculate_beam_rates(device_lat, device_lon, satellite_lat, satellite_lon, elevation_angle_list, slant_range_list,
-                        eirp_gt, eirp_satellite, gain_to_noise_gt, gain_to_noise_satellite, frequency_dl, frequency_ul, bandwidth_dl, bandwidth_ul):
+                        eirp_gt, eirp_satellite, gain_to_noise_gt, gain_to_noise_satellite, frequency_dl, frequency_ul, bandwidth_dl, bandwidth_ul, sc6, sc9):
         """
         Computes uplink and downlink data rates for multiple link conditions.
         
@@ -275,8 +275,8 @@ class ChannelParameters:
                                 eirp_gt, eirp_satellite, gain_to_noise_gt, gain_to_noise_satellite, frequency_dl, frequency_ul, bandwidth_dl, bandwidth_ul)
 
             # Compute uplink and downlink rates in Mbps
-            ul_rate = comm_channel.compute_ul_rate() / 10**6
-            dl_rate = comm_channel.compute_dl_rate() / 10**6
+            ul_rate = comm_channel.compute_ul_rate(sc6, sc9) / 10**6
+            dl_rate = comm_channel.compute_dl_rate(sc6, sc9) / 10**6
             
             ul_rate_list.append(ul_rate)
             dl_rate_list.append(dl_rate)
@@ -284,7 +284,7 @@ class ChannelParameters:
         return ul_rate_list, dl_rate_list
     
     def calculate_ue_rate(device_lat, device_lon, satellite_lat, satellite_lon, elevation_angle, slant_range,
-                        eirp_gt, eirp_satellite, gain_to_noise_gt, gain_to_noise_satellite, frequency_dl, frequency_ul, bandwidth_dl, bandwidth_ul):
+                        eirp_gt, eirp_satellite, gain_to_noise_gt, gain_to_noise_satellite, frequency_dl, frequency_ul, bandwidth_dl, bandwidth_ul, sc6, sc9):
         """
         Calculates uplink and downlink rates based on various parameters.
         """
@@ -294,11 +294,11 @@ class ChannelParameters:
                             eirp_gt, eirp_satellite, gain_to_noise_gt, gain_to_noise_satellite, frequency_dl, frequency_ul, bandwidth_dl, bandwidth_ul)
 
         # Compute uplink and downlink rates in Mbps
-        ul_rate = comm_channel.compute_ul_rate() / 10**6
-        dl_rate = comm_channel.compute_dl_rate() / 10**6
+        ul_rate = comm_channel.compute_ul_rate(sc6, sc9) / 10**6
+        dl_rate = comm_channel.compute_dl_rate(sc6, sc9) / 10**6
 
-        ul_snr = comm_channel.get_snr_ul()
-        dl_snr = comm_channel.get_snr_dl()
+        ul_snr = comm_channel.get_snr_ul(sc6, sc9)
+        dl_snr = comm_channel.get_snr_dl(sc6, sc9)
 
         return ul_rate, dl_rate, ul_snr, dl_snr
 
