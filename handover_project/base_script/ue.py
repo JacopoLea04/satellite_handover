@@ -10,23 +10,20 @@ class Ue:
 
 
     def connect_to_satellite(self, satellite):
+        # satellite is a tuple (sat_name, sat_lat, sat_lon, sat_alt, elev, slant, snr_dl, snr_ul, thr_dl, thr_ul, connected_users)
         self.connected_to = satellite
+        print(f"UE {self.id} connected to {satellite[0]}")
         return timedelta(milliseconds=10)  # Estimated time for connection
 
-
-    def disconnect_from_satellite(self):
-        self.connected_to = None
-        return timedelta(milliseconds=10)  # Estimated time for disconnection
 
     def get_connection_info(self):
         return self.connected_to
 
 
-    # Check the SNR of the current connection and decide if a handover is needed
-        # If a handover is needed, find the best satellite to connect to and perform the handover
-        # Update the satellite's load and the UE's connection information accordingly.
-    def handover(self, satellite):
-        delay = timedelta(0)
-        delay += self.disconnect_from_satellite()
-        delay += self.connect_to_satellite(satellite)
-        return delay
+    def disconnect_from_satellite(self, msg):
+        print(f"UE {self.id} disconnected from {self.connected_to[0]} since: {msg}")
+        self.connected_to = None
+        return timedelta(milliseconds=10)  # Estimated time for disconnection
+
+        
+

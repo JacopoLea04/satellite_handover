@@ -1,11 +1,241 @@
 from skyfield.api import load
-from datetime import datetime
+from datetime import datetime, timedelta
 import numpy as np
 
 from satellite import Satellite
 from channel_parameters import ChannelParameters
 
 import math
+import csv
+import pandas as pd
+
+
+def get_satellites_at_time(df, target_time):
+    """
+    Filters a pandas DataFrame and returns a list of tuples containing satellite 
+    information for a specific datetime.
+    """
+    satellites = []
+    
+    # Check if target_time is a datetime object and format it to match the DataFrame
+    if isinstance(target_time, datetime):
+        # Formats to "YYYY-MM-DD HH:MM:SS" (e.g., "2025-06-08 00:00:00")
+        target_time_str = target_time.strftime("%Y-%m-%d %H:%M:%S")
+    else:
+        # Fallback just in case you pass a string directly
+        target_time_str = str(target_time)
+    
+    try:
+        # 1. Filter the DataFrame
+        # .astype(str) ensures it safely compares strings, even if pandas 
+        # auto-converted your time column to datetime objects when loading the CSV.
+        matched_data = df[df['time'].astype(str) == target_time_str]
+        
+        # 2. Iterate through the matching rows
+        for index, row in matched_data.iterrows():
+            sat_info = (
+                row['sat_name'],
+                float(row['sat_lat']),
+                float(row['sat_lon']),
+                float(row['sat_height']),
+                float(row['elevation']),
+                float(row['slant']),
+                float(row['snr_dl']),
+                float(row['snr_ul']),
+                float(row['thr_dl']),
+                float(row['thr_ul']),
+                int(row['connected_users'])
+            )
+            satellites.append(sat_info)
+            
+    except KeyError as e:
+        print(f"Error: Missing expected column in DataFrame - {e}")
+    except ValueError as e:
+        print(f"Error: Data format issue (e.g., empty or non-numeric values) - {e}")
+        
+    return satellites
+
+
+def get_best_satellite_by_dl_snr(satellites_list):
+    """
+    Takes a list of satellite tuples and returns the satellite 
+    with the highest Downlink SNR (snr_dl).
+    """
+    # Safety check: if the list is empty, return None to prevent errors
+    if not satellites_list:
+        print("Warning: The satellite list is empty.")
+        return None
+
+    # Find the tuple with the maximum value at index 6 (snr_dl)
+    best_satellite = max(satellites_list, key=lambda sat: sat[6])
+    
+    return best_satellite
+
+
+def get_best_satellite_by_available_dl_thr(satellites_list):
+    """
+    Takes a list of satellite tuples and returns the satellite 
+    that offers the highest potential Downlink Throughput per user.
+    """
+    # Safety check: if the list is empty, return None to prevent errors
+    if not satellites_list:
+        print("Warning: The satellite list is empty.")
+        return None
+
+    # Find the satellite that maximizes: thr_dl / (connected_users + 1)
+    # sat[8] is thr_dl, sat[10] is connected_users
+    best_satellite = max(
+        satellites_list, 
+        key=lambda sat: sat[8] / (sat[10] + 1)
+    )
+    
+    return best_satellite
+
+
+
+
+def increment_connected_users_df(df, target_time, target_sat_name):
+    """
+    Finds a specific satellite at a specific time in a pandas DataFrame 
+    and increments its 'connected_users' value by 1.
+    """
+    # Format the datetime object to a string to match the DataFrame
+    if isinstance(target_time, datetime):
+        target_time_str = target_time.strftime("%Y-%m-%d %H:%M:%S")
+    else:
+        target_time_str = str(target_time)
+
+    # Make sure the 'connected_users' column is treated as numbers (integers),
+    # just in case it was read from the CSV as text strings.
+    df['connected_users'] = pd.to_numeric(df['connected_users'], errors='coerce').fillna(0).astype(int)
+
+    # Create a filter (mask) to find the exact row(s)
+    # Note: If your df['time'] column was already converted to datetime objects, 
+    # you would compare directly against `target_time` instead of `target_time_str`.
+    mask = (df['time'].astype(str) == target_time_str) & (df['sat_name'] == target_sat_name)
+
+    # Check if the satellite exists at that time
+    if mask.any():
+        # Use .loc to locate the exact cell and add 1
+        df.loc[mask, 'connected_users'] += 1
+        # print(f"Successfully updated users for {target_sat_name} at {target_time_str}.")
+    #else:
+        #print(f"Could not find {target_sat_name} at time {target_time_str}.")
+
+    # Return the updated DataFrame
+    return df
+
+def decrement_connected_users_df(df, target_time, target_sat_name):
+    """
+    Finds a specific satellite at a specific time in a pandas DataFrame 
+    and decrements its 'connected_users' value by 1.
+    """
+    # Format the datetime object to a string to match the DataFrame
+    if isinstance(target_time, datetime):
+        target_time_str = target_time.strftime("%Y-%m-%d %H:%M:%S")
+    else:
+        target_time_str = str(target_time)
+
+    # Make sure the 'connected_users' column is treated as numbers (integers),
+    # just in case it was read from the CSV as text strings.
+    df['connected_users'] = pd.to_numeric(df['connected_users'], errors='coerce').fillna(0).astype(int)
+
+    # Create a filter (mask) to find the exact row(s)
+    # Note: If your df['time'] column was already converted to datetime objects, 
+    # you would compare directly against `target_time` instead of `target_time_str`.
+    mask = (df['time'].astype(str) == target_time_str) & (df['sat_name'] == target_sat_name)
+
+    # Check if the satellite exists at that time
+    if mask.any():
+        # Use .loc to locate the exact cell and decrement 1
+        df.loc[mask, 'connected_users'] -= 1
+        # print(f"Successfully updated users for {target_sat_name} at {target_time_str}.")
+    # else:
+        #print(f"Could not find {target_sat_name} at time {target_time_str}.")
+
+    # Return the updated DataFrame
+    return df
+
+
+
+
+
+def compute_dl_snr(frame, satellite_name, time):
+    """
+    Looks up a specific satellite at a specific time in a DataFrame 
+    and returns its Downlink SNR (snr_dl).
+    """
+    # Format the time object to match the DataFrame string format
+    if isinstance(time, datetime):
+        time_str = time.strftime("%Y-%m-%d %H:%M:%S")
+    else:
+        time_str = str(time)
+        
+    # Create a mask to find the exact row
+    mask = (frame['time'].astype(str) == time_str) & (frame['sat_name'] == satellite_name)
+    
+    # Apply the mask to filter the DataFrame
+    filtered_row = frame[mask]
+    
+    # Check if a match was found and return the value
+    if not filtered_row.empty:
+        # .iloc[0] extracts the value from the very first matching row
+        snr_value = filtered_row['snr_dl'].iloc[0]
+        return float(snr_value)
+    else:
+        #print(f"Warning: Could not find SNR data for {satellite_name} at {time_str}.")
+        return None
+
+
+def propagate_users_to_next_second(df, current_time, time_shift):
+    """
+    Looks at all satellites at 'current_time', copies their 'connected_users', 
+    and assigns that value to the same satellites exactly 1 second later 
+    (if they are still visible).
+    """
+    # Calculate the exact next second
+    next_time = current_time + time_shift
+    
+    # Format times to strings 
+    if isinstance(current_time, datetime):
+        current_time_str = current_time.strftime("%Y-%m-%d %H:%M:%S")
+        next_time_str = next_time.strftime("%Y-%m-%d %H:%M:%S")
+    else:
+        # Fallback if you passed strings directly
+        current_time_str = str(current_time)
+        next_time_str = str(next_time) 
+
+    # Get all satellites available at the CURRENT time
+    current_time_mask = df['time'].astype(str) == current_time_str
+    current_sats = df[current_time_mask]
+    
+    # Create a fast-lookup dictionary: {'Sat_Name': connected_users_count, ...}
+    # This prevents us from having to loop through the DataFrame multiple times.
+    users_map = dict(zip(current_sats['sat_name'], current_sats['connected_users']))
+    
+    # Create a baseline mask for the NEXT time instant
+    next_time_mask = df['time'].astype(str) == next_time_str
+    
+    # Loop through our dictionary and update the next second's data
+    for sat_name, users in users_map.items():
+        
+        # Isolate the specific satellite at the next time instant
+        target_mask = next_time_mask & (df['sat_name'] == sat_name)
+        
+        # If this mask finds a match (meaning the sat is still visible 1s later)
+        if target_mask.any():
+            # Safely update the value in-place using .loc
+            df.loc[target_mask, 'connected_users'] = users
+            
+    # Return the updated DataFrame 
+    return df
+
+
+# ************************************************************************************************************************
+# **************************************** OLD STUFF BELOW, IGNORE *******************************************************
+# ************************************************************************************************************************
+
+
 
 
 # =========================================================
