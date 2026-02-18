@@ -231,6 +231,34 @@ def propagate_users_to_next_second(df, current_time, time_shift):
     return df
 
 
+
+def compute_dl_thr(frame, satellite_name, time):
+    """
+    Looks up a specific satellite at a specific time in a DataFrame 
+    and returns its Downlink Throughput (thr_dl).
+    """
+    # Format the time object to match the DataFrame string format
+    if isinstance(time, datetime):
+        time_str = time.strftime("%Y-%m-%d %H:%M:%S")
+    else:
+        time_str = str(time)
+        
+    # Create a mask to find the exact row
+    mask = (frame['time'].astype(str) == time_str) & (frame['sat_name'] == satellite_name)
+    
+    # Apply the mask to filter the DataFrame
+    filtered_row = frame[mask]
+    
+    # Check if a match was found and return the value
+    if not filtered_row.empty:
+        # .iloc[0] extracts the value from the very first matching row
+        thr_value = filtered_row['thr_dl'].iloc[0] / (filtered_row['connected_users'].iloc[0])  # +1 to avoid division by zero
+        return float(thr_value)
+    else:
+        #print(f"Warning: Could not find Throughput data for {satellite_name} at {time_str}.")
+        return None
+
+
 # ************************************************************************************************************************
 # **************************************** OLD STUFF BELOW, IGNORE *******************************************************
 # ************************************************************************************************************************

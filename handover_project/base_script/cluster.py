@@ -94,3 +94,7 @@ class Cluster:
             self.frame = utils.increment_connected_users_df(self.frame, time, new_satellite[0])
 
         return delay
+    
+
+    def get_list_ues(self):
+        return self.list_ues
