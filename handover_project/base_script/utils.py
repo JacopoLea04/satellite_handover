@@ -10,6 +10,51 @@ import csv
 import pandas as pd
 
 
+def get_visible_satellites(df, service_sats, target_time):
+    """
+    Filters a pandas DataFrame and returns a list of tuples containing satellite 
+    information for a specific datetime.
+    """
+    satellites = []
+    
+    # Check if target_time is a datetime object and format it to match the DataFrame
+    if isinstance(target_time, datetime):
+        # Formats to "YYYY-MM-DD HH:MM:SS" (e.g., "2025-06-08 00:00:00")
+        target_time_str = target_time.strftime("%Y-%m-%d %H:%M:%S")
+    else:
+        # Fallback just in case you pass a string directly
+        target_time_str = str(target_time)
+    
+    try:
+        # 1. Filter the DataFrame
+        # .astype(str) ensures it safely compares strings, even if pandas 
+        # auto-converted your time column to datetime objects when loading the CSV.
+        matched_data = df[df['time'].astype(str) == target_time_str]
+        
+        # 2. Iterate through the matching rows
+        for index, row in matched_data.iterrows():
+            sat_info = (
+                row['sat_name'],
+                float(row['sat_lat']),
+                float(row['sat_lon']),
+                float(row['sat_height']),
+                float(row['elevation']),
+                float(row['slant']),
+                float(row['snr_dl']),
+                float(row['snr_ul']),
+                float(row['thr_dl']),
+                float(row['thr_ul']),
+                int(row['connected_users'])
+            )
+            satellites.append(sat_info)
+            
+    except KeyError as e:
+        print(f"Error: Missing expected column in DataFrame - {e}")
+    except ValueError as e:
+        print(f"Error: Data format issue (e.g., empty or non-numeric values) - {e}")
+        
+    return satellites
+
 def get_satellites_at_time(df, target_time):
     """
     Filters a pandas DataFrame and returns a list of tuples containing satellite 
@@ -55,6 +100,25 @@ def get_satellites_at_time(df, target_time):
         
     return satellites
 
+def get_best_satellite(visible_sats, service_sats):
+
+    # update the field of "connected_users" for the visible satellites
+    for service in service_sats:
+        exists = any(sat['sat_name'] == service.name for sat in visible_sats)
+        if exists:
+            # retrive the index of the selected satellite within the service satellites list
+            index = next((i for i, sat in enumerate(visible_sats) if service.name == sat['sat_name']), -1)
+            visible_sats[index]["connected_users"] = len(service.connected_to)
+
+    # Find the satellite that maximizes: thr_dl / (connected_users + 1)
+    # sat[8] is thr_dl, sat[10] is connected_users
+    best_satellite = max(
+        visible_sats, 
+        key=lambda sat: sat[8] / (sat[10] + 1)
+    )
+    
+    return best_satellite
+    
 
 def get_best_satellite_by_dl_snr(satellites_list):
     """
