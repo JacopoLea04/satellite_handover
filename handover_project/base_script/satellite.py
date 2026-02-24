@@ -9,7 +9,13 @@ class Satellite:
         self.handover_manager = self.HandoverManager(self, servers = servers, mu = mu)
         self.connected_ues = 0
 
+
     class HandoverManager:
+        # typical values for number of servers n and mean service time 1/mu could be the following:
+        # n = 8-16-32, mu = 1/30ms. These values can be adjusted to simulate different scenarios and 
+        # evaluate the associated performance impact. 
+        # note that the UE shall not be unable to communicate for the whole duration of the handover,
+        # only for the time it takes for the disconnection from the serving satellite and RACH to the target.
         def __init__(self, satellite, servers, mu):
             print(f"\n=== initializing hom for {satellite.name} ===")
             self.satellite = satellite
@@ -23,7 +29,19 @@ class Satellite:
             """
             Handles the handover process for a UE moving from current satellite to destination as */M/k queue.
                 Args:
-                    
+                    arrival_time (float): The time at which the handover request arrives.
+                    ue (Ue): The UE object that is being handed over.
+                    dest_satellite (Satellite): The destination satellite to which the UE is being handed over.
+                Returns:
+                    handover_info (dict): a dictionary containing the following information:
+                        - arrival_time: The time at which the handover request arrives.
+                        - event_type: The type of event (e.g., "out_ho" for handover out).
+                        - ue_id: The ID of the UE being handed over.
+                        - from_satellite: The name of the current satellite.
+                        - dest_satellite: The name of the destination satellite.
+                        - start_time: The time at which the handover process starts.
+                        - departure_time: The time at which the handover process ends.
+                        - duration: The duration of the handover process.
             """
 
             print(f"{arrival_time}:processing handover for ue {ue.id}")
