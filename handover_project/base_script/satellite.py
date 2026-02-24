@@ -77,3 +77,15 @@ class Satellite:
         """
         self.handover_manager.deactivate()
         self.handover_manager = None
+
+    def connect_to_ue(self, ue):
+        self.connected_to.append(ue)
+        # TODO print a line in the df
+
+    def disconnetct_to_ue(self, ue):
+        # remove the UE from the list of connected UEs
+        self.connected_to = [sat for sat in self.connected_to if sat.name != ue.id]
+        # TODO print a line in the df
+    
+    def get_connected_to(self):
+        return self.connected_to
