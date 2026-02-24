@@ -1,16 +1,20 @@
 from datetime import datetime, timedelta
 import pandas as pd
 
-from cluster import Cluster
+from cluster_v2 import Cluster
 from ue import Ue
 from satellite import Satellite
 
 # initial configuration
-df_name = "data_frame/satellite_df.csv"
+df_name = "200Km_satellite_df.csv"
 data_frame = pd.read_csv(df_name)
 
-# (name, position, num_ues, satellites_frame, threshold_snr)
-cluster = Cluster("Cluster1", (45.4384, 11.0086, 0), 13, data_frame, -10)
+# satellites parameters
+servers = 10
+mu = 0.5
+
+# (name, position, num_ues, satellites_frame, threshold_snr, satellite servers, satellite mu)
+cluster = Cluster("Cluster1", (45.4384, 11.0086, 0), 13, data_frame, -10, servers, mu)
 
 # (# year, month, day, hour, minute, second)
 time = datetime(2025, 6, 8, 0, 0, 0) 
@@ -27,7 +31,7 @@ while time < end_sim_time:
 
     # update the df of each UEs according to its operation at each time instant and update 
     # the list of service satellites
-    service_stats = cluster.monitor(time, service_stats)
+    service_sats = cluster.monitor(time, service_sats)
 
     # increment the time by 1 sec
     time += timedelta(seconds=1)

@@ -49,7 +49,11 @@ class Satellite:
             print(f"\thandover duration: {duration}")
             earliest_time = heapq.heappop(self.events_queue)
             print(f"\tearliest time: {earliest_time}")
-            start_time = max(arrival_time, earliest_time)
+
+            # TODO: we need a time instant with respect to the actual time start of this slot, and not respect to the entire simulation time
+            arrival_time_rel = 0
+
+            start_time = max(arrival_time_rel, earliest_time)
             end_time = start_time + duration
             heapq.heappush(self.events_queue, end_time)
             handover_info = {
@@ -95,15 +99,3 @@ class Satellite:
         """
         self.handover_manager.deactivate()
         self.handover_manager = None
-
-    def connect_to_ue(self, ue):
-        self.connected_to.append(ue)
-        # TODO print a line in the df
-
-    def disconnetct_to_ue(self, ue):
-        # remove the UE from the list of connected UEs
-        self.connected_to = [sat for sat in self.connected_to if sat.name != ue.id]
-        # TODO print a line in the df
-    
-    def get_connected_to(self):
-        return self.connected_to

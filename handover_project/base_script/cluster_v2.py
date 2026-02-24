@@ -6,7 +6,7 @@ import random
 from satellite import Satellite
 
 class Cluster:
-    def __init__(self, name, position, num_ues, satellites_frame, threshold_snr):
+    def __init__(self, name, position, num_ues, satellites_frame, threshold_snr, servers, mu):
         self.name = name
         self.num_ues = num_ues
         self.position = position
@@ -14,6 +14,8 @@ class Cluster:
         self.list_ues = [Ue(ii+1, position) for ii in range(num_ues)]
         self.frame = satellites_frame
         self.threshold = threshold_snr
+        self.sat_servers = servers
+        self.sat_mu = mu
     
     def get_ues_list(self):
         return self.list_ues
@@ -31,19 +33,19 @@ class Cluster:
         # For each UE, connect to a random satellite
         for ue in self.list_ues:
 
-            random_index = random.randint(0, len(self.list_ues)-1)
+            random_index = random.randint(0, len(visible_sats)-1)
             selected_sat = visible_sats[random_index]
 
             # is this satellite already configured?
-            exists = any(sat.name == selected_sat['sat_name'] for sat in service_sats)
+            exists = any(sat.name == selected_sat[0] for sat in service_sats)
             if not exists:
-                sat = Satellite(selected_sat) # TODO how to actually create a Satellite object
+                sat = Satellite(selected_sat[0], self.sat_servers, self.sat_mu)
                 service_sats.append(sat)
 
             # retrive the index of the selected satellite within the service satellites list
-            index = next((i for i, sat in enumerate(service_sats) if sat.name == selected_sat['sat_name']), -1)
+            index = next((i for i, sat in enumerate(service_sats) if sat.name == selected_sat[0]), -1)
             ue.connect_to_satellite(service_sats[index])
-            service_sats[index].connect_to_ue(ue)
+            service_sats[index].connect_ue()
             
         return service_sats
     
@@ -64,12 +66,18 @@ class Cluster:
                 # find all visible satellites at the given time
                 visible_sats = utils.get_satellites_at_time(self.frame, time)
                 best_sat = utils.get_best_satellite(visible_sats, service_sats)
-                ue.handover(time, curr_sat, best_sat)
 
-                exists = any(sat.name == best_sat['sat_name'] for sat in service_sats)
+                exists = any(sat.name == best_sat[0] for sat in service_sats)
                 if not exists:
-                    sat = Satellite(best_sat) # TODO how to actually create a Satellite object
-                    service_sats.append(sat)
+                    dest_sat = Satellite(best_sat, self.sat_servers, self.sat_mu) 
+                    service_sats.append(dest_sat)
+                else:
+                    # retrive the index of the selected satellite within the service satellites list
+                    index = next((i for i, sat in enumerate(service_sats) if sat.name == best_sat[0]), -1)
+                    dest_sat = service_sats[index]
+
+                ue.handover(time, dest_sat)
+
 
         return service_sats
                 

@@ -104,11 +104,15 @@ def get_best_satellite(visible_sats, service_sats):
 
     # update the field of "connected_users" for the visible satellites
     for service in service_sats:
-        exists = any(sat['sat_name'] == service.name for sat in visible_sats)
+        exists = any(sat[0] == service.name for sat in visible_sats)
         if exists:
             # retrive the index of the selected satellite within the service satellites list
-            index = next((i for i, sat in enumerate(visible_sats) if service.name == sat['sat_name']), -1)
-            visible_sats[index]["connected_users"] = len(service.connected_to)
+            index = next((i for i, sat in enumerate(visible_sats) if service.name == sat[0]), -1)
+
+            # this to avoid the fact we are working with a tupla
+            temp = list(visible_sats[index])
+            temp[10] = service.connected_ues
+            visible_sats[index] = temp
 
     # Find the satellite that maximizes: thr_dl / (connected_users + 1)
     # sat[8] is thr_dl, sat[10] is connected_users

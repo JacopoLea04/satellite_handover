@@ -1,4 +1,4 @@
-from datetime import timedelta
+from satellite import Satellite
 
 class Ue:
     def __init__(self, id, position):
@@ -13,13 +13,14 @@ class Ue:
         self.connected_to = satellite
         # TODO print a line in the df
 
-    def handover(self, ime, dest_sat):
-        from_sat = self.get_connection_info
+    def handover(self, time, dest_sat):
+        curr_sat = self.get_connection_info()
         self.connect_to_satellite(dest_sat) # so as to update to which satellite this ue is connected
-        from_sat.disconnetct_to_ue(self) # disconnect the ue from the current satellite
+        curr_sat.disconnect_ue() # disconnect the ue from the current satellite
 
-        # TODO from_sat.handover_manager.process_handover(time, from_sat, dest_sat)
-        # TODO print a line in its df
+        handover_info = curr_sat.handover_manager.process_handover(time, self, dest_sat) # actual handover process
+
+        # TODO what to do with handover_info ???
         return
 
 
