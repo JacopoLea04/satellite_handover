@@ -58,7 +58,7 @@ class Cluster:
             curr_sat = ue.get_connection_info()
 
             if(curr_sat is not None):
-                snr = utils.compute_dl_snr(self.frame, curr_sat.name, time )
+                snr = utils.compute_dl_snr(self.frame, curr_sat.name, time)
 
             # handover condition (satellite out of visibility or snr lower than trheshold)
             if(snr == None or snr < self.threshold):
@@ -69,7 +69,7 @@ class Cluster:
 
                 exists = any(sat.name == best_sat[0] for sat in service_sats)
                 if not exists:
-                    dest_sat = Satellite(best_sat, self.sat_servers, self.sat_mu) 
+                    dest_sat = Satellite(best_sat[0], self.sat_servers, self.sat_mu) 
                     service_sats.append(dest_sat)
                 else:
                     # retrive the index of the selected satellite within the service satellites list

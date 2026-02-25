@@ -2,6 +2,7 @@ from pyclbr import Class
 import heapq
 import random
 import pandas as pd
+import os
 
 class Satellite:
     def __init__(self, name, servers, mu):
@@ -17,7 +18,7 @@ class Satellite:
         # note that the UE shall not be unable to communicate for the whole duration of the handover,
         # only for the time it takes for the disconnection from the serving satellite and RACH to the target.
         def __init__(self, satellite, servers, mu):
-            print(f"\n=== initializing hom for {satellite.name} ===")
+            # print(f"\n=== initializing hom for {satellite.name} ===")
             self.satellite = satellite
             self.servers = servers
             self.mu = mu
@@ -44,14 +45,14 @@ class Satellite:
                         - duration: The duration of the handover process.
             """
 
-            print(f"{arrival_time}:processing handover for ue {ue.id}")
+            # print(f"{arrival_time}:processing handover for ue {ue.id}")
             duration = random.expovariate(self.mu)
-            print(f"\thandover duration: {duration}")
+            # print(f"\thandover duration: {duration}")
             earliest_time = heapq.heappop(self.events_queue)
-            print(f"\tearliest time: {earliest_time}")
+            # print(f"\tearliest time: {earliest_time}")
 
             # TODO: we need a time instant with respect to the actual time start of this slot, and not respect to the entire simulation time
-            arrival_time_rel = 0
+            arrival_time_rel = arrival_time.timestamp()
 
             start_time = max(arrival_time_rel, earliest_time)
             end_time = start_time + duration
@@ -72,9 +73,14 @@ class Satellite:
 
         def deactivate(self):
             df = pd.DataFrame(self.handover_tracker)
-            print(f"\n=== saving output file for {self.satellite.name} ===")
-            filename = f"{self.satellite.name}_handover_events"
-            df.to_csv(f'{filename}.csv', index=False)
+            # print(f"\n=== saving output file for {self.satellite.name} ===")
+            filename = f"{self.satellite.name}_handover_events.csv"
+
+            output_folder = "Satellite dataframes"
+            full_path = os.path.join(output_folder, filename)
+            os.makedirs(output_folder, exist_ok=True)
+
+            df.to_csv(full_path, index=False)
 
 
     def connect_ue(self):
