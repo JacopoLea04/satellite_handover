@@ -46,6 +46,20 @@ class Cluster:
             index = next((i for i, sat in enumerate(service_sats) if sat.name == selected_sat[0]), -1)
             ue.connect_to_satellite(service_sats[index])
             service_sats[index].connect_ue()
+
+            handover_info = {
+                "arrival_time": time,
+                "event_type": "init_con",
+                "ue_id": ue.id,
+                "from_satellite": None,
+                "dest_satellite": service_sats[index].name,
+                "start_time": time,
+                "departure_time": 0,
+                "duration": 0,
+                "dest_number_ues": service_sats[index].connected_ues
+            }
+            service_sats[index].handover_manager.handover_tracker.append(handover_info)
+            ue.handover_tracker.append(handover_info)
             
         return service_sats
     
@@ -65,16 +79,26 @@ class Cluster:
 
                 # find all visible satellites at the given time
                 visible_sats = utils.get_satellites_at_time(self.frame, time)
+
+                for (index, sat) in enumerate(visible_sats):
+                    exists = any(ss.name == sat[0] for ss in service_sats)
+                    if(exists):
+                        index = next((i for i, ss in enumerate(service_sats) if ss.name == sat[0]), -1)
+                        sat_obj = service_sats[index]
+                        sat = sat[:10] + (sat_obj.connected_ues,)
+
                 best_sat = utils.get_best_satellite(visible_sats, service_sats)
 
                 exists = any(sat.name == best_sat[0] for sat in service_sats)
                 if not exists:
                     dest_sat = Satellite(best_sat[0], self.sat_servers, self.sat_mu) 
+                    dest_sat.connect_ue()
                     service_sats.append(dest_sat)
                 else:
                     # retrive the index of the selected satellite within the service satellites list
                     index = next((i for i, sat in enumerate(service_sats) if sat.name == best_sat[0]), -1)
                     dest_sat = service_sats[index]
+                    dest_sat.connect_ue()
 
                 ue.handover(time, dest_sat)
 

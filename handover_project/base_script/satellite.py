@@ -8,7 +8,7 @@ class Satellite:
     def __init__(self, name, servers, mu):
         self.name = name
         self.handover_manager = self.HandoverManager(self, servers = servers, mu = mu)
-        self.connected_ues = 0
+        self.connected_ues = 0 # I create a satellite only when a Ue wants to connect to him
 
 
     class HandoverManager:
@@ -65,9 +65,11 @@ class Satellite:
                 "dest_satellite": dest_satellite.name,
                 "start_time": start_time,
                 "departure_time": end_time,
-                "duration": duration
+                "duration": duration,
+                "dest_number_ues": dest_satellite.connected_ues
             }
             self.handover_tracker.append(handover_info)
+
             return handover_info
 
 

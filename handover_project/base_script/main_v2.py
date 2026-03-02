@@ -14,14 +14,14 @@ data_frame = pd.read_csv(df_name)
 servers = 1
 mu = 1/(30*1e-3)
 
-num_ues = 50
+num_ues = 150
 
 # (name, position, num_ues, satellites_frame, threshold_snr, satellite servers, satellite mu)
 cluster = Cluster("Cluster1", (45.4384, 11.0086, 0), num_ues, data_frame, -10, servers, mu)
 
 # (# year, month, day, hour, minute, second)
 time = datetime(2025, 6, 8, 0, 0, 0) 
-end_sim_time = datetime(2025, 6, 8, 0, 1, 0)
+end_sim_time = datetime(2025, 6, 8, 0, 10, 0)
 
 # Initial connection phase: each ue connects to a random satellite
 service_sats = cluster.initial_connection_phase(time)

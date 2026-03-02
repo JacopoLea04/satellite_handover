@@ -14,7 +14,6 @@ class Ue:
 
     def connect_to_satellite(self, satellite):
         self.connected_to = satellite
-        # TODO print a line in the df
 
     def handover(self, time, dest_sat):
         curr_sat = self.get_connection_info()
@@ -24,7 +23,6 @@ class Ue:
         handover_info = curr_sat.handover_manager.process_handover(time, self, dest_sat) # actual handover process
         self.handover_tracker.append(handover_info)
 
-        # TODO what to do with handover_info ???
         return
 
 
