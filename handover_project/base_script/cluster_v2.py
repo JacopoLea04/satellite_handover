@@ -89,6 +89,8 @@ class Cluster:
 
                 best_sat = utils.get_best_satellite(visible_sats, service_sats)
 
+                dest_sat = None
+
                 exists = any(sat.name == best_sat[0] for sat in service_sats)
                 if not exists:
                     dest_sat = Satellite(best_sat[0], self.sat_servers, self.sat_mu) 
