@@ -65,7 +65,11 @@ class Cluster:
     
     def monitor(self, time, service_sats):
 
-        for ue in self.list_ues:
+        # so as to avoid tha UE1 is always the first one to be served
+        random_list_ues = self.list_ues.copy()
+        random.shuffle(random_list_ues)
+
+        for ue in random_list_ues:
 
             # just lower than the actual treshold
             snr = self.threshold - 1
