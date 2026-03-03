@@ -63,7 +63,7 @@ class Cluster:
             
         return service_sats
     
-    def monitor(self, time, service_sats):
+    def monitor(self, time, service_sats, ho_condition, sat_selection_condition):
 
         # so as to avoid tha UE1 is always the first one to be served
         random_list_ues = self.list_ues.copy()
@@ -78,8 +78,14 @@ class Cluster:
             if(curr_sat is not None):
                 snr = utils.compute_dl_snr(self.frame, curr_sat.name, time)
 
-            # handover condition (satellite out of visibility or snr lower than trheshold)
-            if(snr == None or snr < self.threshold):
+            handover = False
+            if(ho_condition == "SNR"):
+                # handover condition (satellite out of visibility or snr lower than trheshold)
+                handover = (snr == None or snr < self.threshold)
+            else:
+                print("!!! Something wrong, I can feel it: no valid handover condition provided!")
+
+            if(handover):
 
                 # find all visible satellites at the given time
                 visible_sats = utils.get_satellites_at_time(self.frame, time)
@@ -91,7 +97,11 @@ class Cluster:
                         sat_obj = service_sats[index]
                         sat = sat[:10] + (sat_obj.connected_ues,)
 
-                best_sat = utils.get_best_satellite(visible_sats, service_sats)
+                best_sat = None
+                if(sat_selection_condition == "AVL_THR"):
+                    best_sat = utils.get_best_satellite(visible_sats, service_sats)
+                else:
+                    print("!!! Something wrong, I can feel it: no valid satellite selection criterion provided")
 
                 dest_sat = None
 

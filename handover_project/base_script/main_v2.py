@@ -15,6 +15,8 @@ data_frame = pd.read_csv(df_name)
 servers = 1
 mu = 1/(30*1e-3) # default is 1/(30*1e-3)
 num_ues = 50
+ho_condition = "SNR"
+sat_selection_condition = "AVL_THR"
 
 # parsing input parameters
 parser = argparse.ArgumentParser(description="Satellite Simulation Script")
@@ -51,7 +53,7 @@ with tqdm(total=total_iterations, desc="Simulating") as pbar:
 
         # update the df of each UEs according to its operation at each time instant and update 
         # the list of service satellites
-        service_sats = cluster.monitor(time, service_sats)
+        service_sats = cluster.monitor(time, service_sats, ho_condition, sat_selection_condition)
         
         # Display the current time on the right side of the progress bar instead of printing it
         pbar.set_postfix(time=time.strftime("%H:%M:%S"))
