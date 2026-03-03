@@ -69,6 +69,7 @@ class Satellite:
                 "dest_number_ues": dest_satellite.connected_ues
             }
             self.handover_tracker.append(handover_info)
+            dest_satellite.handover_manager.handover_tracker.append(handover_info)
 
             return handover_info
 
