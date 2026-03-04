@@ -22,18 +22,23 @@ average_handover_duration = False
 average_service_time = False
 # 6. Number of handover processes handled by each satelliteprint
 ho_handled = False
+# 7. Average throughput
+get_throughput = True
 
 
 output_folder = "Output plots"
-period = '1h'
-N = 10 # to select only a subset of objects (it is used only from function #2)
+df_name = "200km_satellite_df.csv"
+period = '20 min'
+simTimeStart = datetime(2025, 6, 8, 0, 0, 0) 
+simTimeEnd = datetime(2025, 6, 8, 0, 20, 0) 
+N = 1 # to select only a subset of objects (it is used only from function #2)
+
 
 # ========================================================================================================= # 
 
 # 1. How many satellites in visibility over time
 if(visible_sats_over_time):
     print("1. Priting the number of visible satellites ...")
-    df_name = "200km_satellite_df.csv"
     data_frame = pd.read_csv(df_name)
     time = datetime(2025, 6, 8, 0, 0, 0) # 4. Average handover duration
     end_sim_time = datetime(2025, 6, 8, 1, 0, 0)
@@ -66,7 +71,6 @@ if(visible_sats_over_time):
 # 2. Evolution of N satellites SNR over time
 if(snr_over_time):
     print("2. Priting the SNR over time ...")
-    df_name = "200km_satellite_df.csv"
     data_frame = pd.read_csv(df_name)
     time = datetime(2025, 6, 8, 0, 0, 0) 
     end_sim_time = datetime(2025, 6, 8, 0, 10, 0)
@@ -248,6 +252,7 @@ if(ho_handled):
     ho_count = []
     num_sats = 0
     for file_path in folder_path.glob('*.csv'):
+        # needed beacuse there are some saved satellites which have empty df
         try:
             df = pd.read_csv(file_path)
             count = len(df[df['event_type'] == 'out_ho'])
@@ -295,4 +300,97 @@ if(ho_handled):
     plt.savefig(file_path, dpi=300, bbox_inches='tight')
     
     
+    print("   Completed!\n")
+
+# ========================================================================================================= #
+
+# 7. Average throughput
+if(get_throughput):
+    
+    print("7. Average trhoguhput ...")
+    folder_path = Path('Ue dataframes')
+
+    # Phase 1: know which satellite the ue_x is connected to for each time instant
+    # list to collect connection data and time instant for all ues
+    ues = []
+    count = 0
+    for file_path in folder_path.glob('*.csv'):
+        suffix = "_handover_events.csv"
+        ue_id = file_path.name.replace(suffix, "")
+
+        if(count == N):
+            break
+        df = pd.read_csv(file_path)
+        result = list(df[['arrival_time', 'dest_satellite']].to_records(index=False))
+
+        # list where it is saved at which satellite the ue is connected for all time instants
+        # index 0 correpsonds to time instant 0s, index 1 correpsonds to time instant 1s, ...
+        connected_to = []
+        for ii, xx in enumerate(result):
+            ti = datetime.strptime(result[ii][0], "%Y-%m-%d %H:%M:%S")
+            if(ii == len(result)-1):
+                tf = simTimeEnd
+            else:
+                tf = datetime.strptime(result[ii+1][0], "%Y-%m-%d %H:%M:%S")
+            sec = int((tf-ti).total_seconds())
+            connected_to = connected_to + [result[ii][1]]*sec
+        
+        # the last element (out of scope for the sim time) is the ue_id
+        connected_to.append(ue_id)
+        ues.append(connected_to)
+        count += 1
+
+    # Phase 2: know the max DL/UL thr. of satellite y at specific time instant
+    # Phase 3: know  how many users a satellite is connected to at a specific time instnat
+    all_thr = []
+    data_frame = pd.read_csv(df_name)
+    for ue in ues:
+        ue_id = ue[-1]
+        print(ue_id)
+        thr = []
+        for sec, sat_name in enumerate(ue[:-1]):
+            time = simTimeStart + timedelta(seconds=sec)
+            print(time)
+            max_dl_thr, max_ul_thr = utils.get_max_thr(data_frame, sat_name, time)
+
+            folder_name = "Satellite dataframes"
+            file_name = sat_name + "_handover_events.csv"
+            file_path = Path(folder_name) / file_name
+            curr_sat_df = pd.read_csv(file_path)
+            curr_sat_df['arrival_time'] = pd.to_datetime(curr_sat_df['arrival_time'])
+            curr_sat_df = curr_sat_df[curr_sat_df['arrival_time'] <= time]
+            num_ues = 0
+            for index, row in curr_sat_df.iterrows():
+                if row['event_type'] == 'init_con':
+                    num_ues += 1
+                elif row['event_type'] == 'out_ho':
+                    if row['dest_satellite'] == sat_name:
+                        num_ues += 1
+                    else:
+                        num_ues -= 1
+            dl_thr = max_dl_thr / num_ues 
+            ul_thr = max_ul_thr / num_ues 
+            thr.append((dl_thr, ul_thr))
+
+        # the last element (out of scope for the sim time) is the ue_id
+        thr.append(ue_id)
+        all_thr.append(thr)
+        print("done")
+
+
+    plt.figure(figsize=(10,5))
+    for xx in all_thr:
+        plt.plot(xx[:-1], marker='.', linestyle='none')
+
+    plt.title('DL&UL throughputs')
+    plt.xlabel('Time [sec]')
+    plt.ylabel('Throghput [Mbit/s]')
+    plt.grid(True)
+    os.makedirs(output_folder, exist_ok=True)
+    file_name = "7.Throughput.png"
+    file_path = os.path.join(output_folder, file_name)
+    plt.savefig(file_path, dpi=300, bbox_inches='tight')
+
+        
+
     print("   Completed!\n")

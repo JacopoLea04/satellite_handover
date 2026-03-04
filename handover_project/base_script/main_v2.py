@@ -12,9 +12,10 @@ df_name = "200km_satellite_df.csv"
 data_frame = pd.read_csv(df_name)
 
 # satellites parameters
+simTime = timedelta(minutes=20)
 servers = 1
 mu = 1/(30*1e-3) # default is 1/(30*1e-3)
-num_ues = 50
+num_ues = 1000
 ho_condition = "SNR"
 sat_selection_condition = "AVL_THR"
 
@@ -34,7 +35,7 @@ cluster = Cluster("Cluster1", (45.4384, 11.0086, 0), num_ues, data_frame, -10, s
 
 # (# year, month, day, hour, minute, second)
 time = datetime(2025, 6, 8, 0, 0, 0) 
-end_sim_time = datetime(2025, 6, 8, 0, 1, 0)
+end_sim_time = time + simTime
 
 # Initial connection phase: each ue connects to a random satellite
 service_sats = cluster.initial_connection_phase(time)
