@@ -256,10 +256,11 @@ if(ho_handled):
         try:
             df = pd.read_csv(file_path)
             count = len(df[df['event_type'] == 'out_ho'])
+            count = count + len(df[df['event_type'] == 'in_ho'])
             ho_count.append(count)
             num_sats += 1
         except Exception as e:
-            # print("Empty satellite dataframe!")
+            print("Empty satellite dataframe!")
             continue
 
 
@@ -346,11 +347,11 @@ if(get_throughput):
     data_frame = pd.read_csv(df_name)
     for ue in ues:
         ue_id = ue[-1]
-        print(ue_id)
+        # print(ue_id)
         thr = []
         for sec, sat_name in enumerate(ue[:-1]):
             time = simTimeStart + timedelta(seconds=sec)
-            print(time)
+            # print(time)
             max_dl_thr, max_ul_thr = utils.get_max_thr(data_frame, sat_name, time)
 
             folder_name = "Satellite dataframes"
