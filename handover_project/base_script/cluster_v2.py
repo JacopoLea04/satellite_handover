@@ -65,46 +65,45 @@ class Cluster:
     
     def monitor(self, time, service_sats, ho_condition, sat_selection_condition):
 
+        # note service_sats is a list of Satellite objects.
         # so as to avoid tha UE1 is always the first one to be served
         random_list_ues = self.list_ues.copy()
         random.shuffle(random_list_ues)
+        visible_sats = None # optimized so the visible satellites are computed at most once per time instant
 
         for ue in random_list_ues:
-
             # just lower than the actual treshold
             snr = self.threshold - 1
             curr_sat = ue.get_connection_info()
-
             if(curr_sat is not None):
                 snr = utils.compute_dl_snr(self.frame, curr_sat.name, time)
-
             handover = False
             if(ho_condition == "SNR"):
                 # handover condition (satellite out of visibility or snr lower than trheshold)
                 handover = (snr == None or snr < self.threshold)
             else:
                 print("!!! Something wrong, I can feel it: no valid handover condition provided!")
-
             if(handover):
+                if visible_sats is None:
+                    # visible_sats is a tuple representing a satellite, but the number of connected users is at zero
+                    visible_sats = utils.get_satellites_at_time(self.frame, time)
+                # find all visible satellites at the given time RMEOVED FOR OPTIMIZATION 
+                # visible_sats = utils.get_satellites_at_time(self.frame, time)
 
-                # find all visible satellites at the given time
-                visible_sats = utils.get_satellites_at_time(self.frame, time)
-
-                for (index, sat) in enumerate(visible_sats):
-                    exists = any(ss.name == sat[0] for ss in service_sats)
-                    if(exists):
-                        index = next((i for i, ss in enumerate(service_sats) if ss.name == sat[0]), -1)
-                        sat_obj = service_sats[index]
-                        sat = sat[:10] + (sat_obj.connected_ues,)
-
+                ## note: this loop is wrong, the assegnation sat = sat[:10] + (sat_obj.connected_ues,) does nothing 
+                # for (index, sat) in enumerate(visible_sats):
+                #     exists = any(ss.name == sat[0] for ss in service_sats)
+                #     if(exists):
+                #         index = next((i for i, ss in enumerate(service_sats) if ss.name == sat[0]), -1)
+                #         sat_obj = service_sats[index]
+                #         sat = sat[:10] + (sat_obj.connected_ues,)
+                
                 best_sat = None
                 if(sat_selection_condition == "AVL_THR"):
                     best_sat = utils.get_best_satellite(visible_sats, service_sats)
                 else:
                     print("!!! Something wrong, I can feel it: no valid satellite selection criterion provided")
-
                 dest_sat = None
-
                 exists = any(sat.name == best_sat[0] for sat in service_sats)
                 if not exists:
                     dest_sat = Satellite(best_sat[0], self.sat_servers, self.sat_mu) 
@@ -115,9 +114,5 @@ class Cluster:
                     index = next((i for i, sat in enumerate(service_sats) if sat.name == best_sat[0]), -1)
                     dest_sat = service_sats[index]
                     dest_sat.connect_ue()
-
                 ue.handover(time, dest_sat)
-
-
         return service_sats
-                
