@@ -59,7 +59,7 @@ class Satellite:
             heapq.heappush(self.events_queue, end_time)
             handover_info = {
                 "arrival_time": arrival_time,
-                "event_type": "out_ho",
+                "event_type": "in_ho",
                 "ue_id": ue.id,
                 "from_satellite": self.satellite.name,
                 "dest_satellite": dest_satellite.name,
@@ -68,9 +68,9 @@ class Satellite:
                 "duration": duration,
                 "dest_number_ues": dest_satellite.connected_ues
             }
-            self.handover_tracker.append(handover_info)
             dest_satellite.handover_manager.handover_tracker.append(handover_info)
-
+            handover_info["event_type"] = "out_ho"
+            self.handover_tracker.append(handover_info)
             return handover_info
 
 
