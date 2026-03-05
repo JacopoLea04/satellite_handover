@@ -11,17 +11,17 @@ import numpy as np
 # ========================================================================================================= # 
 
 # 1. How many satellites in visibility over time
-visible_sats_over_time = False
+visible_sats_over_time = True
 # 2. Evolution of N satellites SNR over time
-snr_over_time = False
+snr_over_time = True
 # 3. Average handover rate 
-average_handover_rate = False
+average_handover_rate = True
 # 4. Average handover duration
-average_handover_duration = False
+average_handover_duration = True
 # 5. Average service time before the next handover event
-average_service_time = False
+average_service_time = True
 # 6. Number of handover processes handled by each satelliteprint
-ho_handled = False
+ho_handled = True
 # 7. Average throughput
 get_throughput = True
 
@@ -31,7 +31,9 @@ df_name = "200km_satellite_df.csv"
 period = '20 min'
 simTimeStart = datetime(2025, 6, 8, 0, 0, 0) 
 simTimeEnd = datetime(2025, 6, 8, 0, 20, 0) 
-N = 1 # to select only a subset of objects (it is used only from function #2)
+N = 3 # to select only a subset of objects (it is used only from function #2 and #7)
+colors1 = ['skyblue', 'lightcoral', 'palegreen', 'mocassin', 'plum', 'tan', 'lightpink', 'lightgray', 'darkkhaki', 'paleturquoise']
+colors2 = ['blue', 'red', 'green', 'orange', 'purple', 'brown', 'pink', 'gray', 'olive', 'cyan']
 
 
 # ========================================================================================================= # 
@@ -80,7 +82,7 @@ if(snr_over_time):
     visible_sats = visible_satellites[:N]
     plt.figure(figsize=(10, 5))
     for sat in visible_sats:
-        print("  ", sat[0])
+        print("   SAT ID", sat[0])
         timestamps = []
         snr = []
         time = datetime(2025, 6, 8, 0, 0, 0) 
@@ -121,28 +123,25 @@ if(average_handover_rate):
         num_ues += 1
 
     # 3.1
-    plt.figure(figsize=(10, 5))
-    plt.hist(ho_count, bins=range(min(ho_count), max(ho_count) + 2), color='skyblue', edgecolor='black', align='left')
-    plt.title(f'Distribution of Handovers per {num_ues} UEs ({period} Period)')
-    plt.xlabel('Number of Handovers')
-    plt.ylabel('Number of UEs')
-    plt.grid(axis='y', alpha=0.3)
+    fig, ax1 = plt.subplots(figsize=(10, 5))
+    ax1.hist(ho_count, bins=range(min(ho_count), max(ho_count) + 2), 
+            color='skyblue', edgecolor='black', align='left', alpha=0.7)
+    ax1.set_xlabel('Number of Handovers')
+    ax1.set_ylabel('Number of UEs (Frequency)', color='skyblue')
+    ax1.tick_params(axis='y', labelcolor='skyblue')
+    ax1.grid(axis='y', alpha=0.3)
+
+    ax2 = ax1.twinx() 
+    sns.kdeplot(ho_count, fill=True, color="orange", ax=ax2)
+    ax2.set_ylabel('Probability Density', color='orange')
+    ax2.tick_params(axis='y', labelcolor='orange')
+
+    plt.title(f'Distribution & Density of Handovers ({period} Period)')
     os.makedirs(output_folder, exist_ok=True)
-    file_name = "3.1-hist_ho_rate.png"
-    file_path = os.path.join(output_folder, file_name)
+    file_path = os.path.join(output_folder, "3.1-pdf_ho_plot.png")
     plt.savefig(file_path, dpi=300, bbox_inches='tight')
 
     # 3.2
-    plt.figure(figsize=(10, 5))
-    sns.kdeplot(ho_count, fill=True, color="orange")
-    plt.title(f'Probability Density of Handover Counts per {num_ues} UEs ({period} Period)')
-    plt.xlabel('Handovers')
-    os.makedirs(output_folder, exist_ok=True)
-    file_name = "3.2-pdf_ho_rate.png"
-    file_path = os.path.join(output_folder, file_name)
-    plt.savefig(file_path, dpi=300, bbox_inches='tight')
-
-    # 3.3
     sorted_data = np.sort(ho_count)
     yvals = np.arange(len(sorted_data)) / float(len(sorted_data) - 1)
     plt.figure(figsize=(10,5))
@@ -152,7 +151,7 @@ if(average_handover_rate):
     plt.ylabel('CDF')
     plt.grid(True)
     os.makedirs(output_folder, exist_ok=True)
-    file_name = "3.3-cdf_ho_rate.png"
+    file_name = "3.2-cdf_ho_rate.png"
     file_path = os.path.join(output_folder, file_name)
     plt.savefig(file_path, dpi=300, bbox_inches='tight')
     
@@ -265,28 +264,26 @@ if(ho_handled):
 
 
     # 6.1
-    plt.figure(figsize=(10, 5))
-    plt.hist(ho_count, bins=range(min(ho_count), max(ho_count) + 2), color='skyblue', edgecolor='black', align='left')
-    plt.title(f'Distribution of Handovers per {num_sats} serving satellites ({period} Period)')
-    plt.xlabel('Number of Handovers')
-    plt.ylabel('Number of serving satellites')
-    plt.grid(axis='y', alpha=0.3)
+    fig, ax1 = plt.subplots(figsize=(10, 5))
+    ax1.hist(ho_count, bins=range(min(ho_count), max(ho_count) + 2), 
+            color='skyblue', edgecolor='black', align='left', alpha=0.6)
+    ax1.set_xlabel('Number of Handovers')
+    ax1.set_ylabel('Number of Serving Satellites', color='steelblue', fontweight='bold')
+    ax1.tick_params(axis='y', labelcolor='steelblue')
+    ax1.grid(axis='y', alpha=0.3)
+
+    ax2 = ax1.twinx()
+    sns.kdeplot(ho_count, fill=True, color="orange", ax=ax2, alpha=0.4)
+    ax2.set_ylabel('Probability Density', color='darkorange', fontweight='bold')
+    ax2.tick_params(axis='y', labelcolor='darkorange')
+
+    plt.title(f'Handover Distribution & Density per {num_sats} Serving Satellites ({period})')
     os.makedirs(output_folder, exist_ok=True)
-    file_name = "6.1-hist_ho_handled.png"
-    file_path = os.path.join(output_folder, file_name)
-    plt.savefig(file_path, dpi=300, bbox_inches='tight')
+    combined_file = os.path.join(output_folder, "6.1-pdf_satellite_ho.png")
+    plt.savefig(combined_file, dpi=300, bbox_inches='tight')
+
 
     # 6.2
-    plt.figure(figsize=(10, 5))
-    sns.kdeplot(ho_count, fill=True, color="orange")
-    plt.title(f'Probability Density of Handover Counts per {num_sats} serving satellites ({period} Period)')
-    plt.xlabel('Handovers')
-    os.makedirs(output_folder, exist_ok=True)
-    file_name = "6.2-pdf_ho_handled.png"
-    file_path = os.path.join(output_folder, file_name)
-    plt.savefig(file_path, dpi=300, bbox_inches='tight')
-
-    # 6.3
     sorted_data = np.sort(ho_count)
     yvals = np.arange(len(sorted_data)) / float(len(sorted_data) - 1)
     plt.figure(figsize=(10,5))
@@ -296,7 +293,7 @@ if(ho_handled):
     plt.ylabel('CDF')
     plt.grid(True)
     os.makedirs(output_folder, exist_ok=True)
-    file_name = "6.3-cdf_ho_handled.png"
+    file_name = "6.2-cdf_ho_handled.png"
     file_path = os.path.join(output_folder, file_name)
     plt.savefig(file_path, dpi=300, bbox_inches='tight')
     
@@ -327,6 +324,7 @@ if(get_throughput):
         # list where it is saved at which satellite the ue is connected for all time instants
         # index 0 correpsonds to time instant 0s, index 1 correpsonds to time instant 1s, ...
         connected_to = []
+        ho_times = [0]
         for ii, xx in enumerate(result):
             ti = datetime.strptime(result[ii][0], "%Y-%m-%d %H:%M:%S")
             if(ii == len(result)-1):
@@ -334,10 +332,11 @@ if(get_throughput):
             else:
                 tf = datetime.strptime(result[ii+1][0], "%Y-%m-%d %H:%M:%S")
             sec = int((tf-ti).total_seconds())
+            ho_times.append(sec+ho_times[-1])
             connected_to = connected_to + [result[ii][1]]*sec
         
-        # the last element (out of scope for the sim time) is the ue_id
-        connected_to.append(ue_id)
+        # the last element (out of scope for the sim time) is the ue_id and the ho time instances
+        connected_to.append((ue_id, ho_times[1:]))
         ues.append(connected_to)
         count += 1
 
@@ -346,12 +345,12 @@ if(get_throughput):
     all_thr = []
     data_frame = pd.read_csv(df_name)
     for ue in ues:
-        ue_id = ue[-1]
-        # print(ue_id)
+        ue_id = ue[-1][0]
+        ho_times = ue[-1][1]
+        print("   UE ID", ue_id)
         thr = []
         for sec, sat_name in enumerate(ue[:-1]):
             time = simTimeStart + timedelta(seconds=sec)
-            # print(time)
             max_dl_thr, max_ul_thr = utils.get_max_thr(data_frame, sat_name, time)
 
             folder_name = "Satellite dataframes"
@@ -365,33 +364,55 @@ if(get_throughput):
                 if row['event_type'] == 'init_con':
                     num_ues += 1
                 elif row['event_type'] == 'out_ho':
-                    if row['dest_satellite'] == sat_name:
-                        num_ues += 1
-                    else:
-                        num_ues -= 1
+                    num_ues -= 1
+                elif row['event_type'] == 'in_ho':
+                    num_ues += 1
+                else:
             dl_thr = max_dl_thr / num_ues 
             ul_thr = max_ul_thr / num_ues 
             thr.append((dl_thr, ul_thr))
 
-        # the last element (out of scope for the sim time) is the ue_id
-        thr.append(ue_id)
+        # the last element (out of scope for the sim time) is the ue_id and the ho time instances
+        thr.append((ue_id, ho_times))
         all_thr.append(thr)
-        print("done")
 
-
+    # 7.1 DL thr plot
     plt.figure(figsize=(10,5))
-    for xx in all_thr:
-        plt.plot(xx[:-1], marker='.', linestyle='none')
-
-    plt.title('DL&UL throughputs')
+    for ii, xx in enumerate(all_thr):
+        dl_thr = list(zip(*xx[:-1]))[0]
+        ho_times = xx[-1][1]
+        ho_values = [dl_thr[i-1] for i in ho_times] # avoid index overflow
+        ue_id = xx[-1][0]
+        plt.scatter(ho_times, ho_values, marker='x', label = f'UE ID {ue_id} ho', color=colors1[ii])
+        plt.plot(dl_thr, label = f'UE ID {ue_id}', linestyle="--", color=colors1[ii])
+    plt.title('DL throughputs')
     plt.xlabel('Time [sec]')
     plt.ylabel('Throghput [Mbit/s]')
     plt.grid(True)
+    plt.legend()
     os.makedirs(output_folder, exist_ok=True)
-    file_name = "7.Throughput.png"
+    file_name = "7.1 DL Throughput.png"
+    file_path = os.path.join(output_folder, file_name)
+    plt.savefig(file_path, dpi=300, bbox_inches='tight')
+
+    # 7.2 UL thr plot
+    plt.figure(figsize=(10,5))
+    for ii, xx in enumerate(all_thr):
+        ul_thr = list(zip(*xx[:-1]))[1]
+        ho_times = xx[-1][1]
+        ho_values = [ul_thr[i-1] for i in ho_times] # avoid index overflow
+        ue_id = xx[-1][0]
+        plt.scatter(ho_times, ho_values, marker='x', label = f'UE ID {ue_id} ho', color=colors1[ii])
+        plt.plot(ul_thr, label = f'UE ID {ue_id}', linestyle="--", color=colors1[ii])
+    plt.title('UL throughputs')
+    plt.xlabel('Time [sec]')
+    plt.ylabel('Throghput [Mbit/s]')
+    plt.grid(True)
+    plt.legend()
+    os.makedirs(output_folder, exist_ok=True)
+    file_name = "7.2 UL Throughput.png"
     file_path = os.path.join(output_folder, file_name)
     plt.savefig(file_path, dpi=300, bbox_inches='tight')
 
         
-
     print("   Completed!\n")
