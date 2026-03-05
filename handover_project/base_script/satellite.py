@@ -69,9 +69,10 @@ class Satellite:
                 "dest_number_ues": dest_satellite.connected_ues
             }
             dest_satellite.handover_manager.handover_tracker.append(handover_info)
-            handover_info["event_type"] = "out_ho"
-            self.handover_tracker.append(handover_info)
-            return handover_info
+            out_ho_info = handover_info.copy()
+            out_ho_info["event_type"] = "out_ho"
+            self.handover_tracker.append(out_ho_info)
+            return out_ho_info
 
 
         def deactivate(self):
