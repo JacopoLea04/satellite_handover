@@ -30,37 +30,52 @@ class Cluster:
         # list of selected service satellite (Satellite object)
         service_sats = []
 
-        # For each UE, connect to a random satellite
-        for ue in self.list_ues:
+        if(len(visible_sats) > 0):
+            # For each UE, connect to a random satellite
+            for ue in self.list_ues:
 
-            random_index = random.randint(0, len(visible_sats)-1)
-            selected_sat = visible_sats[random_index]
+                random_index = random.randint(0, len(visible_sats)-1)
+                selected_sat = visible_sats[random_index]
 
-            # is this satellite already configured?
-            exists = any(sat.name == selected_sat[0] for sat in service_sats)
-            if not exists:
-                sat = Satellite(selected_sat[0], self.sat_servers, self.sat_mu)
-                service_sats.append(sat)
+                # is this satellite already configured?
+                exists = any(sat.name == selected_sat[0] for sat in service_sats)
+                if not exists:
+                    sat = Satellite(selected_sat[0], self.sat_servers, self.sat_mu)
+                    service_sats.append(sat)
 
-            # retrive the index of the selected satellite within the service satellites list
-            index = next((i for i, sat in enumerate(service_sats) if sat.name == selected_sat[0]), -1)
-            ue.connect_to_satellite(service_sats[index])
-            service_sats[index].connect_ue()
+                # retrive the index of the selected satellite within the service satellites list
+                index = next((i for i, sat in enumerate(service_sats) if sat.name == selected_sat[0]), -1)
+                ue.connect_to_satellite(service_sats[index])
+                service_sats[index].connect_ue()
 
-            handover_info = {
-                "arrival_time": time,
-                "event_type": "init_con",
-                "ue_id": ue.id,
-                "from_satellite": None,
-                "dest_satellite": service_sats[index].name,
-                "start_time": time,
-                "departure_time": 0,
-                "duration": 0,
-                "dest_number_ues": service_sats[index].connected_ues
-            }
-            service_sats[index].handover_manager.handover_tracker.append(handover_info)
-            ue.handover_tracker.append(handover_info)
-            
+                handover_info = {
+                    "arrival_time": time,
+                    "event_type": "init_con",
+                    "ue_id": ue.id,
+                    "from_satellite": None,
+                    "dest_satellite": service_sats[index].name,
+                    "start_time": time,
+                    "departure_time": 0,
+                    "duration": 0,
+                    "dest_number_ues": service_sats[index].connected_ues
+                }
+                service_sats[index].handover_manager.handover_tracker.append(handover_info)
+                ue.handover_tracker.append(handover_info)
+        else:
+            for ue in self.list_ues:
+                handover_info = {
+                    "arrival_time": time,
+                    "event_type": "out_serv",
+                    "ue_id": ue.id,
+                    "from_satellite": None,
+                    "dest_satellite": None,
+                    "start_time": time,
+                    "departure_time": 0,
+                    "duration": 1.0,
+                    "dest_number_ues": 0
+                }
+                ue.handover_tracker.append(handover_info)
+                
         return service_sats
     
     def monitor(self, time, service_sats, ho_condition, sat_selection_condition):
@@ -103,6 +118,39 @@ class Cluster:
                     best_sat = utils.get_best_satellite(visible_sats, service_sats)
                 else:
                     print("!!! Something wrong, I can feel it: no valid satellite selection criterion provided")
+                
+                # handle situation where no visible satellites
+                if(best_sat == None):
+                    handover_info = {
+                        "arrival_time": time,
+                        "event_type": "out_serv",
+                        "ue_id": ue.id,
+                        "from_satellite": None,
+                        "dest_satellite": None,
+                        "start_time": time,
+                        "departure_time": 0,
+                        "duration": 1.0,
+                        "dest_number_ues": 0
+                    }
+                    ue.handover_tracker.append(handover_info)
+                    if(ue.get_connection_info is not None):
+                        curr_sat = ue.get_connection_info()
+                        curr_sat.disconnect_ue()
+                        sat_handover_info = {
+                            "arrival_time": time,
+                            "event_type": "lost_serv",
+                            "ue_id": ue.id,
+                            "from_satellite": curr_sat.name,
+                            "dest_satellite": None,
+                            "start_time": time,
+                            "departure_time": 0,
+                            "duration": 1.0,
+                            "dest_number_ues": 0
+                        }
+                        curr_sat.handover_tracker.append(sat_handover_info)
+                        ue.connected_to = None
+                    continue
+
                 dest_sat = None
                 exists = any(sat.name == best_sat[0] for sat in service_sats)
                 if not exists:

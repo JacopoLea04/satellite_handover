@@ -130,6 +130,9 @@ def get_max_thr(df, sat_name, target_time):
 
 def get_best_satellite(visible_sats, service_sats):
 
+    if(len(visible_sats) == 0):
+        return None
+
     # update the field of "connected_users" for the visible satellites
     for service in service_sats:
         exists = any(sat[0] == service.name for sat in visible_sats)

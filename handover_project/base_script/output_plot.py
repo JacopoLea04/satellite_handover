@@ -367,7 +367,6 @@ if(get_throughput):
                     num_ues -= 1
                 elif row['event_type'] == 'in_ho':
                     num_ues += 1
-                else:
             dl_thr = max_dl_thr / num_ues 
             ul_thr = max_ul_thr / num_ues 
             thr.append((dl_thr, ul_thr))
