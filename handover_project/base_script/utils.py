@@ -150,6 +150,27 @@ def get_best_satellite(visible_sats, service_sats):
     )
     
     return best_satellite
+
+def get_best_satellite_v2(visible_sats, service_sats):
+
+    # fast lookup dictionary mapping {satellite_name: connected_ues}, better than the nested loop
+    # This loops through service_sats exactly once.
+    service_loads = {sat.name: sat.connected_ues for sat in service_sats}
+
+    def calculate_score(sat):
+        name = sat[0]
+        thr_dl = sat[8]
+        
+        # fast dictionary lookup: get the load if it's active, otherwise default to 0
+        connected_users = service_loads.get(name, 0)
+        
+        # calculate and return the metric
+        return thr_dl / (connected_users + 1)
+        
+    # find the best satellite
+    best_satellite = max(visible_sats, key=calculate_score)
+    
+    return best_satellite
     
 
 def get_best_satellite_by_dl_snr(satellites_list):
