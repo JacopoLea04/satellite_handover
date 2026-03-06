@@ -1,12 +1,14 @@
 from pyclbr import Class
+from skyfield.api import load, EarthSatellite
 import heapq
 import random
 import pandas as pd
 import os
 
 class Satellite:
-    def __init__(self, name, servers, mu):
+    def __init__(self, name, servers = 1, mu = 0.03, tle_data = None):
         self.name = name
+        self.tle_data = tle_data
         self.handover_manager = self.HandoverManager(self, servers = servers, mu = mu)
         self.connected_ues = 0 # I create a satellite only when a Ue wants to connect to him
 
@@ -47,6 +49,7 @@ class Satellite:
 
             # print(f"{arrival_time}:processing handover for ue {ue.id}")
             duration = random.expovariate(self.mu)
+            duration = 0.03 # for testing purposes, we set a fixed duration of 30ms for the handover process
             # print(f"\thandover duration: {duration}")
             earliest_time = heapq.heappop(self.events_queue)
             # print(f"\tearliest time: {earliest_time}")
@@ -101,6 +104,24 @@ class Satellite:
         if self.connected_ues > 0:
             self.connected_ues -= 1
         return self.connected_ues
+    
+    def get_position(self, time):
+        ts = load.timescale()
+        t = ts.utc(time.year, time.month, time.day, time.hour, time.minute, time.second)
+
+        satellite = EarthSatellite(self.tle_data[1], self.tle_data[2])  # Create EarthSatellite object
+        geocentric = satellite.at(t)  # Use the created EarthSatellite object here
+        subpoint = geocentric.subpoint()
+
+        latitude = subpoint.latitude.degrees
+        longitude = subpoint.longitude.degrees
+        height = subpoint.elevation.m
+
+        return latitude, longitude, height
+    
+
+    def get_rate(self, frame, time):
+        return self.get_max_rate(frame, time) / self.load if self.load > 0 else 0
 
     def deactivate(self):
         """
