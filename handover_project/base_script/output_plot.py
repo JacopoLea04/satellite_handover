@@ -208,12 +208,34 @@ if(average_service_time):
     folder_path = Path('Ue dataframes')
     service_time = []
     num_ues = 0
+
+    for file_path in folder_path.glob('*.csv'):
+        df = pd.read_csv(file_path)
+        df['arrival_time'] = pd.to_datetime(df['arrival_time'], errors='coerce')
+        time_diffs_series = []
+        # take two consecutive rows per iteration
+        for r1, r2 in zip(df.itertuples(), df.iloc[1:].itertuples()):
+            
+            # Ora r1 è la riga attuale, r2 è la successiva
+            t1, ev1 = r1.arrival_time, r1.event_type
+            t2, ev2 = r2.arrival_time, r2.event_type
+            
+
+            if ev1 != "out_serv" and ev2 != "out_serv":
+                duration = (t2 - t1).total_seconds()
+                time_diffs_series.append(duration)
+
+        service_time.append(np.mean(time_diffs_series))
+        num_ues += 1
+
+    ''' # Old version
     for file_path in folder_path.glob('*.csv'):
         df = pd.read_csv(file_path)
         df['arrival_time'] = pd.to_datetime(df['arrival_time'], errors='coerce')
         time_diffs_series = df['arrival_time'].diff().dt.total_seconds().dropna().astype(int).tolist()
         service_time.append(np.mean(time_diffs_series))
         num_ues += 1
+    '''
 
     # 5.1
     plt.figure(figsize=(10, 5))
@@ -277,7 +299,7 @@ if(ho_handled):
     ax2.set_ylabel('Probability Density', color='darkorange', fontweight='bold')
     ax2.tick_params(axis='y', labelcolor='darkorange')
 
-    plt.title(f'Handover Distribution & Density per {num_sats} Serving Satellites ({period})')
+    plt.title(f'Out and In Handovers Distribution & Density per {num_sats} Serving Satellites ({period})')
     os.makedirs(output_folder, exist_ok=True)
     combined_file = os.path.join(output_folder, "6.1-pdf_satellite_ho.png")
     plt.savefig(combined_file, dpi=300, bbox_inches='tight')
@@ -288,7 +310,7 @@ if(ho_handled):
     yvals = np.arange(len(sorted_data)) / float(len(sorted_data) - 1)
     plt.figure(figsize=(10,5))
     plt.plot(sorted_data, yvals, marker='.', linestyle='none')
-    plt.title(f'Cumulative Distribution of Handovers per {num_sats} serving satellites ({period} Period)')
+    plt.title(f'Cumulative Distribution of Out and In Handovers per {num_sats} serving satellites ({period} Period)')
     plt.xlabel('Number of Handovers')
     plt.ylabel('CDF')
     plt.grid(True)
@@ -351,6 +373,13 @@ if(get_throughput):
         thr = []
         for sec, sat_name in enumerate(ue[:-1]):
             time = simTimeStart + timedelta(seconds=sec)
+            
+            #the ue is not connected to any satellite
+            if(pd.isna(sat_name)): 
+                thr.append((0,0))
+                continue
+
+            # the ue is connected to a satellite
             max_dl_thr, max_ul_thr = utils.get_max_thr(data_frame, sat_name, time)
 
             folder_name = "Satellite dataframes"
