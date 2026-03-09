@@ -168,9 +168,24 @@ if(average_handover_duration):
     num_ues = 0
     for file_path in folder_path.glob('*.csv'):
         df = pd.read_csv(file_path)
-        duration_list = df[df['event_type'] == 'out_ho']['duration'].tolist()
-        duration_ms = [x * 1000 for x in duration_list]
-        ho_duration.append(np.mean(duration_ms))
+        df = df[df['event_type'] == 'out_ho']
+        # parse arrival time
+        arr_naive = pd.to_datetime(df['arrival_time'], errors='coerce')
+        # important: the arrival time is a datetime object with localization on a specific timezone, while unix epoch time is always UTC.
+        # to avoid offset issues, we need to specify that the time is in the timezone of the simulation, (in this case europe) and
+        # convert it to UTC timezone, so we can subtract it from the departure time with no issues.
+        arr = arr_naive.dt.tz_localize('Europe/Berlin').dt.tz_convert('UTC')
+
+        # parse departure time (unix time is always UTC)
+        dep = pd.to_datetime(df['departure_time'], unit='s', errors='coerce', utc=True)
+        # compute the difference
+        duration_series = dep - arr
+        # convert to milliseconds
+        duration_ms = duration_series.dt.total_seconds() * 1000
+        # calculate the mean
+        ho_duration.append(duration_ms.mean())
+
+        # print("Duration ms (First 5):\n", duration_ms.head())
         num_ues += 1
 
     # 4.1
