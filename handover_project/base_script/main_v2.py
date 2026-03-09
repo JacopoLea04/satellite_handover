@@ -8,7 +8,7 @@ from ue import Ue
 from satellite import Satellite
 
 # initial configuration
-df_name = "200km_satellite_df.csv"
+df_name = "75km_satellite_df.csv"
 data_frame = pd.read_csv(df_name)
 
 # satellites parameters

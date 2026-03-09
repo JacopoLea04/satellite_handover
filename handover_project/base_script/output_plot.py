@@ -27,7 +27,7 @@ get_throughput = True
 
 
 output_folder = "Output plots"
-df_name = "200km_satellite_df.csv"
+df_name = "75km_satellite_df.csv"
 period = '20 min'
 simTimeStart = datetime(2025, 6, 8, 0, 0, 0) 
 simTimeEnd = datetime(2025, 6, 8, 0, 20, 0) 
