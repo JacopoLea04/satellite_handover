@@ -121,19 +121,33 @@ class Cluster:
                 
                 # handle situation where no visible satellites
                 if(best_sat == None):
-                    handover_info = {
-                        "arrival_time": time,
-                        "event_type": "out_serv",
-                        "ue_id": ue.id,
-                        "from_satellite": None,
-                        "dest_satellite": None,
-                        "start_time": time,
-                        "departure_time": 0,
-                        "duration": 1.0,
-                        "dest_number_ues": 0
-                    }
+
+                    if(curr_sat is None):
+                        handover_info = {
+                            "arrival_time": time,
+                            "event_type": "out_serv",
+                            "ue_id": ue.id,
+                            "from_satellite": None,
+                            "dest_satellite": None,
+                            "start_time": time,
+                            "departure_time": 0,
+                            "duration": 1.0,
+                            "dest_number_ues": 0
+                        }
+                    else:
+                        handover_info = {
+                            "arrival_time": time,
+                            "event_type": "lost_conn",
+                            "ue_id": ue.id,
+                            "from_satellite": None,
+                            "dest_satellite": None,
+                            "start_time": time,
+                            "departure_time": 0,
+                            "duration": 1.0,
+                            "dest_number_ues": 0
+                        }
                     ue.handover_tracker.append(handover_info)
-                    if(ue.get_connection_info is not None):
+                    if(ue.get_connection_info() is not None):
                         curr_sat = ue.get_connection_info()
                         curr_sat.disconnect_ue()
                         sat_handover_info = {
@@ -147,20 +161,22 @@ class Cluster:
                             "duration": 1.0,
                             "dest_number_ues": 0
                         }
-                        curr_sat.handover_tracker.append(sat_handover_info)
+                        curr_sat.handover_manager.handover_tracker.append(sat_handover_info)
                         ue.connected_to = None
-                    continue
-
-                dest_sat = None
-                exists = any(sat.name == best_sat[0] for sat in service_sats)
-                if not exists:
-                    dest_sat = Satellite(best_sat[0], self.sat_servers, self.sat_mu) 
-                    dest_sat.connect_ue()
-                    service_sats.append(dest_sat)
-                else:
-                    # retrive the index of the selected satellite within the service satellites list
-                    index = next((i for i, sat in enumerate(service_sats) if sat.name == best_sat[0]), -1)
-                    dest_sat = service_sats[index]
-                    dest_sat.connect_ue()
-                ue.handover(time, dest_sat)
+                else: # we have at least one visible satellite
+                    dest_sat = None
+                    exists = any(sat.name == best_sat[0] for sat in service_sats)
+                    if not exists:
+                        dest_sat = Satellite(best_sat[0], self.sat_servers, self.sat_mu) 
+                        dest_sat.connect_ue()
+                        service_sats.append(dest_sat)
+                    else:
+                        # retrive the index of the selected satellite within the service satellites list
+                        index = next((i for i, sat in enumerate(service_sats) if sat.name == best_sat[0]), -1)
+                        dest_sat = service_sats[index]
+                        dest_sat.connect_ue()
+                    if(ue.get_connection_info() is None):
+                        ue.initial_connection_to(time, dest_sat)
+                    else:
+                        ue.handover(time, dest_sat)
         return service_sats
