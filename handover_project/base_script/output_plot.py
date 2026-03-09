@@ -24,6 +24,8 @@ average_service_time = True
 ho_handled = True
 # 7. Average throughput
 get_throughput = True
+# 8. Average number and duration of out of services
+out_of_service = True
 
 
 output_folder = "Output plots"
@@ -458,4 +460,104 @@ if(get_throughput):
     plt.savefig(file_path, dpi=300, bbox_inches='tight')
 
         
+    print("   Completed!\n")
+
+# ========================================================================================================= #
+
+# 8. Average number and duration of out of services
+if(out_of_service):
+    print("8. Priting the average number and durtation of out of services ...")
+    folder_path = Path('Ue dataframes')
+    avg_lens = []
+    avg_losses = []
+    num_ues = 0
+
+    for file_path in folder_path.glob('*.csv'):
+        df = pd.read_csv(file_path)
+        duration = []
+        count = 0
+        # take two consecutive rows per iteration
+        for r1, r2 in zip(df.itertuples(), df.iloc[1:].itertuples()):
+            ev1 = r1.event_type
+            ev2 = r2.event_type
+            
+            if ev2 == "out_serv":
+                count += 1
+            elif ev1 == "out_serv" and ev2 != "out_serv":
+                duration.append(count+1)
+                count = 0
+        if(len(duration)>0):
+            avg_lens.append(np.mean(duration))
+            avg_losses.append(len(duration))
+        num_ues += 1
+
+    if(len(avg_lens) > 0):
+        print(f"   Averaged number of out of service events: {np.mean(avg_losses)} , for an average time of {np.mean(avg_lens)} ms")
+    else:
+        print("   No out of service events")
+    
+
+    # Do not plot anything since usually we never have out of service events.
+    '''
+    # 8.1
+    #print(avg_lens)
+    #print(avg_losses)
+    plt.figure(figsize=(10, 5))
+    sns.kdeplot(avg_lens, fill=True, color="orange")
+    plt.title(f'Probability Density of Out of Service Duration per {num_ues} UEs ({period} Period)')
+    plt.xlabel('Duration [s]')
+    os.makedirs(output_folder, exist_ok=True)
+    file_name = "8.1-pdf_oos_duration.png"
+    file_path = os.path.join(output_folder, file_name)
+    plt.savefig(file_path, dpi=300, bbox_inches='tight')
+
+    # 8.2
+    sorted_data = np.sort(avg_lens)
+    yvals = np.arange(len(sorted_data)) / float(len(sorted_data) - 1)
+    plt.figure(figsize=(10,5))
+    plt.plot(sorted_data, yvals, marker='.', linestyle='none')
+    plt.title(f'Cumulative Distribution of Out of Service per {num_ues} UEs ({period} Period)')
+    plt.xlabel('Duration [s]')
+    plt.ylabel('CDF')
+    plt.grid(True)
+    os.makedirs(output_folder, exist_ok=True)
+    file_name = "8.2-cdf_oos_duration.png"
+    file_path = os.path.join(output_folder, file_name)
+    plt.savefig(file_path, dpi=300, bbox_inches='tight')
+
+    # 8.3
+    fig, ax1 = plt.subplots(figsize=(10, 5))
+    ax1.hist(avg_losses, bins=range(min(avg_losses), max(avg_losses) + 2), 
+            color='skyblue', edgecolor='black', align='left', alpha=0.6)
+    ax1.set_xlabel('Duration [s]')
+    ax1.set_ylabel('Number of Out of Service', color='steelblue', fontweight='bold')
+    ax1.tick_params(axis='y', labelcolor='steelblue')
+    ax1.grid(axis='y', alpha=0.3)
+
+    ax2 = ax1.twinx()
+    sns.kdeplot(avg_losses, fill=True, color="orange", ax=ax2, alpha=0.4)
+    ax2.set_ylabel('Probability Density', color='darkorange', fontweight='bold')
+    ax2.tick_params(axis='y', labelcolor='darkorange')
+
+    plt.title(f'Out of Service events per {num_ues} UEs ({period})')
+    os.makedirs(output_folder, exist_ok=True)
+    combined_file = os.path.join(output_folder, "8.3-pdf_oos_events.png")
+    plt.savefig(combined_file, dpi=300, bbox_inches='tight')
+
+    # 8.4
+    sorted_data = np.sort(avg_lens)
+    yvals = np.arange(len(sorted_data)) / float(len(sorted_data) - 1)
+    plt.figure(figsize=(10,5))
+    plt.plot(sorted_data, yvals, marker='.', linestyle='none')
+    plt.title(f'Cumulative Distribution of Out of Service Events per {num_ues} UEs ({period} Period)')
+    plt.xlabel('Duration [s]')
+    plt.ylabel('CDF')
+    plt.grid(True)
+    os.makedirs(output_folder, exist_ok=True)
+    file_name = "8.4-cdf_oos_duration.png"
+    file_path = os.path.join(output_folder, file_name)
+    plt.savefig(file_path, dpi=300, bbox_inches='tight')
+    '''
+    
+    
     print("   Completed!\n")
