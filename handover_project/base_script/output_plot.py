@@ -28,7 +28,7 @@ get_throughput = True
 out_of_service = True
 
 
-output_folder = "Output plots"
+output_folder = "plots"
 df_name = "75km_satellite_df.csv"
 period = '20 min'
 simTimeStart = datetime(2025, 6, 8, 0, 0, 0) 
