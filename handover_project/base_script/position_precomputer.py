@@ -139,7 +139,12 @@ def main():
     epoch_time = np.datetime64('2026-02-19T00:00:00')   # epoch time for position computation [y, m, d, h, m, s]
     simulation_duration_seconds = 3600                  # total simulation duration [s]
     simulation_step_seconds = 1                         # time step for position computation [s]
-    lat_ue, lon_ue = 18.29817, -64.82818                # ue location [decimal degrees]
+    # lat_ue, lon_ue = 18.29817, -64.82818                # ue location [decimal degrees]
+    # cluster locations:
+    lat_ue, lon_ue = 45.40996, 11.89261 # porta portello, padova
+    # lat_ue, lon_ue = 48.14295, 11.57997 # hofgarten, moanco di baviera
+    # lat_ue, lon_ue = 47.04240, 8.328983 #richard wagner museum, lucerna
+
     cluster_id = 0
 
     max_workers = None      # none to use all availabe cpu cores, or set to a specific number
@@ -225,7 +230,7 @@ def main():
     print(f"processed in {end_time - start_time:.2f} seconds.")
 
     print("\n=== saving output file ===")
-    filename = "75km_sc9"
+    filename = "75km_sc9_padova"
     df.to_csv(f'{filename}.csv', index=False)
     print(f"saved as {filename}.csv")
     df.to_parquet(f'{filename}.parquet', engine='pyarrow', compression='snappy')
