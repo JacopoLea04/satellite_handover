@@ -135,7 +135,8 @@ def main():
     start_time = time.time() # just to act cool and print the time taken for the computations at the end
 
     # simulation parameters
-    epoch_time = np.datetime64('2025-06-08T00:00:00')   # epoch time for position computation [y, m, d, h, m, s]
+    # epoch_time = np.datetime64('2025-06-08T00:00:00')   # epoch time for position computation [y, m, d, h, m, s]
+    epoch_time = np.datetime64('2026-02-19T00:00:00')   # epoch time for position computation [y, m, d, h, m, s]
     simulation_duration_seconds = 3600                  # total simulation duration [s]
     simulation_step_seconds = 1                         # time step for position computation [s]
     lat_ue, lon_ue = 18.29817, -64.82818                # ue location [decimal degrees]
@@ -224,7 +225,7 @@ def main():
     print(f"processed in {end_time - start_time:.2f} seconds.")
 
     print("\n=== saving output file ===")
-    filename = "75km_satellite_df"
+    filename = "75km_sc9"
     df.to_csv(f'{filename}.csv', index=False)
     print(f"saved as {filename}.csv")
     df.to_parquet(f'{filename}.parquet', engine='pyarrow', compression='snappy')
