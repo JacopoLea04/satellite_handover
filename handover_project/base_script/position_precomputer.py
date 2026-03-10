@@ -65,7 +65,7 @@ def evaluate_time_instant(time_instant, cluster, tle_list, lat_ue, lon_ue, beam_
 
     results = [] # list to store results for all satellites within range at this time instant
     for satellite_name, line1, line2 in tle_list: 
-        sat = Satellite(satellite_name, (satellite_name, line1, line2)) # create satellite object from TLE data
+        sat = Satellite(satellite_name, tle_data=(satellite_name, line1, line2)) # create satellite object from TLE data
         # get satellite position at the given time instant. Note that we need to convert the numpy.datetime64 to a standard Python datetime object
         sat_lat, sat_lon, sat_height_m = sat.get_position(time_instant.astype('datetime64[us]').item())
         # skip if the satellite height is negative or above 5000 km to filter out erroneous position calculations
@@ -135,10 +135,16 @@ def main():
     start_time = time.time() # just to act cool and print the time taken for the computations at the end
 
     # simulation parameters
-    epoch_time = np.datetime64('2025-06-08T00:00:00')   # epoch time for position computation [y, m, d, h, m, s]
-    simulation_duration_seconds = 50                    # total simulation duration [s]
-    simulation_step_seconds = 2                         # time step for position computation [s]
-    lat_ue, lon_ue = 18.29817, -64.82818                # ue location [decimal degrees]
+    # epoch_time = np.datetime64('2025-06-08T00:00:00')   # epoch time for position computation [y, m, d, h, m, s]
+    epoch_time = np.datetime64('2026-02-19T00:00:00')   # epoch time for position computation [y, m, d, h, m, s]
+    simulation_duration_seconds = 3600                  # total simulation duration [s]
+    simulation_step_seconds = 1                         # time step for position computation [s]
+    # lat_ue, lon_ue = 18.29817, -64.82818                # ue location [decimal degrees]
+    # cluster locations:
+    lat_ue, lon_ue = 45.40996, 11.89261 # porta portello, padova
+    # lat_ue, lon_ue = 48.14295, 11.57997 # hofgarten, moanco di baviera
+    # lat_ue, lon_ue = 47.04240, 8.328983 #richard wagner museum, lucerna
+
     cluster_id = 0
 
     max_workers = None      # none to use all availabe cpu cores, or set to a specific number
@@ -146,7 +152,7 @@ def main():
     sc9 = True
     sc6 = False
     if sc9:
-        beam_footprint_m = 50_000  # beam diameter [m]
+        beam_footprint_m = 75_000  # beam diameter [m]
         eirp_gt = -7                # UL EIRP [dBW]
         gt_sat = 1.1                # UL G/T satellite [dB/K]
         eirp_sat = 48.8             # DL EIRP [dBW]
@@ -224,7 +230,7 @@ def main():
     print(f"processed in {end_time - start_time:.2f} seconds.")
 
     print("\n=== saving output file ===")
-    filename = "satellite_df"
+    filename = "75km_sc9_padova"
     df.to_csv(f'{filename}.csv', index=False)
     print(f"saved as {filename}.csv")
     df.to_parquet(f'{filename}.parquet', engine='pyarrow', compression='snappy')

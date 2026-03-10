@@ -14,7 +14,6 @@ class Ue:
 
     def connect_to_satellite(self, satellite):
         self.connected_to = satellite
-        # TODO print a line in the df
 
     def handover(self, time, dest_sat):
         curr_sat = self.get_connection_info()
@@ -24,9 +23,27 @@ class Ue:
         handover_info = curr_sat.handover_manager.process_handover(time, self, dest_sat) # actual handover process
         self.handover_tracker.append(handover_info)
 
-        # TODO what to do with handover_info ???
         return
+    
+    def initial_connection_to(self, time, dest_sat):
+        self.connect_to_satellite(dest_sat) # so as to update to which satellite this ue is connected
 
+        handover_info = {
+                        "arrival_time": time,
+                        "event_type": "init_con",
+                        "ue_id": self.id,
+                        "from_satellite": None,
+                        "dest_satellite": dest_sat.name,
+                        "start_time": time,
+                        "departure_time": 0,
+                        "duration": 1.0,
+                        "dest_number_ues": 0
+                    }
+        self.handover_tracker.append(handover_info)
+        dest_sat.handover_manager.handover_tracker.append(handover_info)
+        dest_sat.connect_ue()
+
+        return
 
     def get_connection_info(self):
         return self.connected_to
