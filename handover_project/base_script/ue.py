@@ -48,11 +48,11 @@ class Ue:
     def get_connection_info(self):
         return self.connected_to
     
-    def deactivate(self):
+    def deactivate(self, cluster_name):
             df = pd.DataFrame(self.handover_tracker)
             filename = f"{self.id}_handover_events.csv"
 
-            output_folder = "Ue dataframes"
+            output_folder = cluster_name + " dataframes"
             full_path = os.path.join(output_folder, filename)
             os.makedirs(output_folder, exist_ok=True)
 

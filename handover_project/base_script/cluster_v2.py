@@ -11,7 +11,7 @@ class Cluster:
         self.num_ues = num_ues
         self.position = position
         # TODO for the moment all the UEs in the cluster are at the same position
-        self.list_ues = [Ue(ii+1, position) for ii in range(num_ues)]
+        self.list_ues = [Ue(self.name + "-Ue" + str(ii+1), position) for ii in range(num_ues)]
         self.frame = satellites_frame
         self.threshold = threshold_snr
         self.sat_servers = servers
@@ -22,13 +22,12 @@ class Cluster:
 
 
     # only at the beginning of the simulation
-    def initial_connection_phase(self, time):
+    def initial_connection_phase(self, time, service_sats):
 
         # Find all visible satellites at the given time
-        visible_sats = utils.get_satellites_at_time(self.frame, time)
-
-        # list of selected service satellite (Satellite object)
-        service_sats = []
+        # round to the closest sec
+        round_time = (time + timedelta(microseconds=500000)).replace(microsecond=0)
+        visible_sats = utils.get_satellites_at_time(self.frame, round_time)
 
         if(len(visible_sats) > 0):
             # For each UE, connect to a random satellite
@@ -36,32 +35,31 @@ class Cluster:
 
                 random_index = random.randint(0, len(visible_sats)-1)
                 selected_sat = visible_sats[random_index]
+                selected_sat_name = selected_sat[0]
 
                 # is this satellite already configured?
-                exists = any(sat.name == selected_sat[0] for sat in service_sats)
-                if not exists:
-                    sat = Satellite(selected_sat[0], self.sat_servers, self.sat_mu)
-                    service_sats.append(sat)
+                if selected_sat_name not in service_sats:
+                    sat = Satellite(selected_sat_name, self.sat_servers, self.sat_mu)
+                    service_sats[selected_sat_name] = sat
 
-                # retrive the index of the selected satellite within the service satellites list
-                index = next((i for i, sat in enumerate(service_sats) if sat.name == selected_sat[0]), -1)
-                ue.connect_to_satellite(service_sats[index])
-                service_sats[index].connect_ue()
+                ue.connect_to_satellite(service_sats[selected_sat_name])
+                service_sats[selected_sat_name].connect_ue()
 
                 handover_info = {
                     "arrival_time": time,
                     "event_type": "init_con",
                     "ue_id": ue.id,
                     "from_satellite": None,
-                    "dest_satellite": service_sats[index].name,
+                    "dest_satellite": service_sats[selected_sat_name].name,
                     "start_time": time,
                     "departure_time": 0,
                     "duration": 0,
-                    "dest_number_ues": service_sats[index].connected_ues
+                    "dest_number_ues": service_sats[selected_sat_name].connected_ues
                 }
-                service_sats[index].handover_manager.handover_tracker.append(handover_info)
+                service_sats[selected_sat_name].handover_manager.handover_tracker.append(handover_info)
                 ue.handover_tracker.append(handover_info)
         else:
+            # all the ues are out of service
             for ue in self.list_ues:
                 handover_info = {
                     "arrival_time": time,
@@ -85,13 +83,15 @@ class Cluster:
         random_list_ues = self.list_ues.copy()
         random.shuffle(random_list_ues)
         visible_sats = None # optimized so the visible satellites are computed at most once per time instant
+        # round to the closest sec
+        round_time = (time + timedelta(microseconds=500000)).replace(microsecond=0)
 
         for ue in random_list_ues:
             # just lower than the actual treshold
             snr = self.threshold - 1
             curr_sat = ue.get_connection_info()
             if(curr_sat is not None):
-                snr = utils.compute_dl_snr(self.frame, curr_sat.name, time)
+                snr = utils.compute_dl_snr(self.frame, curr_sat.name, round_time)
             handover = False
             if(ho_condition == "SNR"):
                 # handover condition (satellite out of visibility or snr lower than trheshold)
@@ -101,17 +101,7 @@ class Cluster:
             if(handover):
                 if visible_sats is None:
                     # visible_sats is a tuple representing a satellite, but the number of connected users is at zero
-                    visible_sats = utils.get_satellites_at_time(self.frame, time)
-                # find all visible satellites at the given time RMEOVED FOR OPTIMIZATION 
-                # visible_sats = utils.get_satellites_at_time(self.frame, time)
-
-                ## note: this loop is wrong, the assegnation sat = sat[:10] + (sat_obj.connected_ues,) does nothing 
-                # for (index, sat) in enumerate(visible_sats):
-                #     exists = any(ss.name == sat[0] for ss in service_sats)
-                #     if(exists):
-                #         index = next((i for i, ss in enumerate(service_sats) if ss.name == sat[0]), -1)
-                #         sat_obj = service_sats[index]
-                #         sat = sat[:10] + (sat_obj.connected_ues,)
+                    visible_sats = utils.get_satellites_at_time(self.frame, round_time)
                 
                 best_sat = None
                 if(sat_selection_condition == "AVL_THR"):
@@ -152,7 +142,7 @@ class Cluster:
                         curr_sat.disconnect_ue()
                         sat_handover_info = {
                             "arrival_time": time,
-                            "event_type": "lost_serv",
+                            "event_type": "lost_conn",
                             "ue_id": ue.id,
                             "from_satellite": curr_sat.name,
                             "dest_satellite": None,
@@ -165,18 +155,15 @@ class Cluster:
                         ue.connected_to = None
                 else: # we have at least one visible satellite
                     dest_sat = None
-                    exists = any(sat.name == best_sat[0] for sat in service_sats)
-                    if not exists:
+                    # is this satellite already configured?
+                    if best_sat[0] not in service_sats:
                         dest_sat = Satellite(best_sat[0], self.sat_servers, self.sat_mu) 
                         dest_sat.connect_ue()
-                        service_sats.append(dest_sat)
+                        service_sats[best_sat[0]] = dest_sat
                     else:
-                        # retrive the index of the selected satellite within the service satellites list
-                        index = next((i for i, sat in enumerate(service_sats) if sat.name == best_sat[0]), -1)
-                        dest_sat = service_sats[index]
+                        dest_sat = service_sats[best_sat[0]]
                         dest_sat.connect_ue()
                     if(ue.get_connection_info() is None):
                         ue.initial_connection_to(time, dest_sat)
                     else:
                         ue.handover(time, dest_sat)
-        return service_sats
