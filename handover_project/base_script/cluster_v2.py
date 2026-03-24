@@ -4,6 +4,7 @@ from datetime import timedelta
 import utils
 import random
 from satellite import Satellite
+import numpy as np
 
 class Cluster:
     def __init__(self, name, position, num_ues, satellites_frame, threshold_snr, servers, mu):
@@ -91,7 +92,12 @@ class Cluster:
             snr = self.threshold - 1
             curr_sat = ue.get_connection_info()
             if(curr_sat is not None):
+                # the UE does not have a perfect knowledge of the SNR, so the measurement should be affected by some noise. 
+                # we therefore introduce a measurement error expressed as zero-mean gaussian noise with a standard deviation of 1 dB.
+                # this reflects 3GPP TS 38.133 (Requirements for support of radio resource management).
                 snr = utils.compute_dl_snr(self.frame, curr_sat.name, round_time)
+                if snr is not None:
+                    snr += np.random.normal(0, 1)  # add gaussian noise
             handover = False
             if(ho_condition == "SNR"):
                 # handover condition (satellite out of visibility or snr lower than trheshold)
@@ -106,6 +112,8 @@ class Cluster:
                 best_sat = None
                 if(sat_selection_condition == "AVL_THR"):
                     best_sat = utils.get_best_satellite(visible_sats, service_sats)
+                elif(sat_selection_condition == "SNR_THR"):
+                    best_sat = utils.get_best_satellite_by_snr_and_thr(visible_sats, service_sats)
                 else:
                     print("!!! Something wrong, I can feel it: no valid satellite selection criterion provided")
                 
