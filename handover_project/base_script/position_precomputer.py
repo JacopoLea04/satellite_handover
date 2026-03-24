@@ -141,9 +141,9 @@ def main():
     simulation_step_seconds = 1                         # time step for position computation [s]
     # lat_ue, lon_ue = 18.29817, -64.82818                # ue location [decimal degrees]
     # cluster locations:
-    lat_ue, lon_ue = 45.40996, 11.89261 # porta portello, padova
+    # lat_ue, lon_ue = 45.40996, 11.89261 # porta portello, padova
     # lat_ue, lon_ue = 48.14295, 11.57997 # hofgarten, moanco di baviera
-    # lat_ue, lon_ue = 47.04240, 8.328983 #richard wagner museum, lucerna
+    lat_ue, lon_ue = 47.04240, 8.328983 #richard wagner museum, lucerna
 
     cluster_id = 0
 
@@ -152,7 +152,7 @@ def main():
     sc9 = True
     sc6 = False
     if sc9:
-        beam_footprint_m = 75_000  # beam diameter [m]
+        beam_footprint_m = 200_000  # beam diameter [m]
         eirp_gt = -7                # UL EIRP [dBW]
         gt_sat = 1.1                # UL G/T satellite [dB/K]
         eirp_sat = 48.8             # DL EIRP [dBW]
@@ -230,7 +230,7 @@ def main():
     print(f"processed in {end_time - start_time:.2f} seconds.")
 
     print("\n=== saving output file ===")
-    filename = "75km_sc9_padova"
+    filename = "200km_sc9_lucerna"
     df.to_csv(f'{filename}.csv', index=False)
     print(f"saved as {filename}.csv")
     df.to_parquet(f'{filename}.parquet', engine='pyarrow', compression='snappy')
