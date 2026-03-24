@@ -11,29 +11,42 @@ import numpy as np
 # ========================================================================================================= # 
 
 # 1. How many satellites in visibility over time
-visible_sats_over_time = True
+visible_sats_over_time = False
 # 2. Evolution of N satellites SNR over time
-snr_over_time = True
+snr_over_time = False
 # 3. Average handover rate 
-average_handover_rate = True
+average_handover_rate = False
 # 4. Average handover duration
-average_handover_duration = True
+average_handover_duration = False
 # 5. Average service time before the next handover event
-average_service_time = True
+average_service_time = False
 # 6. Number of handover processes handled by each satelliteprint
-ho_handled = True
+ho_handled = False
 # 7. Average throughput
-get_throughput = True
+get_throughput = False
+# 7.3 throughput considering HO outage time
+get_throuthput_ho = True
 # 8. Average number and duration of out of services
-out_of_service = True
+out_of_service = False
+# 9. Nu,ber of ping-pong handovers 
+ping_pong_handovers = True
+
 
 
 output_folder = "plots"
-df_name = "75km_satellite_df.csv"
+# df_name = "75km_satellite_df.csv"
+df_padova = "200km_sc9_padova.csv"
+df_monaco = "200km_sc9_munich.csv"
+df_lucerna = "200km_sc9_lucerna.csv"
+dfnames = [df_padova, df_monaco, df_lucerna]
+fnames = ["padova", "munich", "lucerna"]
+
 period = '20 min'
-simTimeStart = datetime(2025, 6, 8, 0, 0, 0) 
-simTimeEnd = datetime(2025, 6, 8, 0, 20, 0) 
-N = 3 # to select only a subset of objects (it is used only from function #2 and #7)
+simTimeStart = datetime(2026, 2, 19, 0, 0, 0) 
+simTimeEnd = datetime(2026, 2, 19, 0, 20, 0) 
+time_step = timedelta(seconds=1)
+N = 5 # to select only a subset of objects (it is used only from function #2 and #7)
+num_ues_to_plot = 2
 colors1 = ['skyblue', 'lightcoral', 'palegreen', 'mocassin', 'plum', 'tan', 'lightpink', 'lightgray', 'darkkhaki', 'paleturquoise']
 colors2 = ['blue', 'red', 'green', 'orange', 'purple', 'brown', 'pink', 'gray', 'olive', 'cyan']
 
@@ -42,80 +55,91 @@ colors2 = ['blue', 'red', 'green', 'orange', 'purple', 'brown', 'pink', 'gray', 
 
 # 1. How many satellites in visibility over time
 if(visible_sats_over_time):
-    print("1. Priting the number of visible satellites ...")
-    data_frame = pd.read_csv(df_name)
-    time = datetime(2025, 6, 8, 0, 0, 0) # 4. Average handover duration
-    end_sim_time = datetime(2025, 6, 8, 1, 0, 0)
+    print("1. Printing the number of visible satellites ...")
+    for df_name, fname in zip(dfnames, fnames):
+        data_frame = pd.read_csv(df_name)
+        time = datetime(2026, 2, 19, 0, 0, 0)
+        end_sim_time = datetime(2026, 2, 19, 0, 20, 0)
 
-    visible_sats = []
-    timestamps = []
-    while time < end_sim_time:
-        visible_satellites = utils.get_satellites_at_time(data_frame, time)
-        visible_sats.append(len(visible_satellites))
-        timestamps.append(time)
-        time += timedelta(seconds=1)
+        visible_sats = []
+        timestamps = []
+        while time < end_sim_time:
+            visible_satellites = utils.get_satellites_at_time(data_frame, time)
+            visible_sats.append(len(visible_satellites))
+            timestamps.append(time)
+            time += timedelta(seconds=1)
 
-    plt.figure(figsize=(10, 5))
-    plt.plot(timestamps, visible_sats, color='blue', linestyle='-')
-    plt.title('Visible Satellites Over Time')
-    plt.xlabel('Time (HH:MM:SS)')
-    plt.ylabel('Number of Visible Satellites')
-    plt.grid(True)
-    plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
-    plt.xticks(rotation=45)
-    plt.tight_layout()
-    os.makedirs(output_folder, exist_ok=True)
-    file_name = "1-satellite_visibility.png"
-    file_path = os.path.join(output_folder, file_name)
-    plt.savefig(file_path, dpi=300, bbox_inches='tight')
+        plt.figure(figsize=(10, 5))
+        plt.plot(timestamps, visible_sats, color='blue', linestyle='-')
+        plt.title('Visible Satellites Over Time')
+        plt.xlabel('Time (HH:MM:SS)')
+        plt.ylabel('Number of Visible Satellites')
+        plt.grid(True)
+        plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
+        plt.xticks(rotation=45)
+        plt.tight_layout()
+        os.makedirs(output_folder, exist_ok=True)
+        file_name = "1-satellite_visibility.png"
+        file_path = os.path.join(output_folder, fname, file_name)
+        os.makedirs(os.path.join(output_folder, fname), exist_ok=True)
+        plt.savefig(file_path, dpi=300, bbox_inches='tight')
     print("   Completed!\n")
 
 # ========================================================================================================= # 
 
 # 2. Evolution of N satellites SNR over time
 if(snr_over_time):
-    print("2. Priting the SNR over time ...")
-    data_frame = pd.read_csv(df_name)
-    time = datetime(2025, 6, 8, 0, 0, 0) 
-    end_sim_time = datetime(2025, 6, 8, 0, 10, 0)
+    print("2. Printing the SNR over time ...")
+    for df_name, fname in zip(dfnames, fnames):
+        print("\texamining ", fname, " ...")
+        data_frame = pd.read_csv(df_name)
+        time = datetime(2026, 2, 19, 0, 0, 0)
+        end_sim_time = datetime(2026, 2, 19, 0, 20, 0)
 
-    visible_satellites = utils.get_satellites_at_time(data_frame, time)
-    N = min(N, len(visible_satellites))
-    visible_sats = visible_satellites[:N]
-    plt.figure(figsize=(10, 5))
-    for sat in visible_sats:
-        print("   SAT ID", sat[0])
-        timestamps = []
-        snr = []
-        time = datetime(2025, 6, 8, 0, 0, 0) 
-        while time < end_sim_time:# 4. Average handover duration
-            dl_snr = utils.compute_dl_snr(data_frame, sat[0], time)
-            snr.append(dl_snr)
-            timestamps.append(time)
-            time += timedelta(seconds=1)
-        lab = sat[0]
-        plt.plot(timestamps, snr, linestyle='-', label=lab)
+        visible_satellites = utils.get_satellites_at_time(data_frame, time)
+        n_visible = min(N, len(visible_satellites))
+        visible_sats = visible_satellites[:n_visible]
+        plt.figure(figsize=(10, 5))
+        for sat in visible_sats:
+            print("\t\tSAT ID", sat[0])
+            timestamps = []
+            snr = []
+            time = datetime(2026, 2, 19, 0, 0, 0) 
+            while time < end_sim_time:
+                dl_snr = utils.compute_dl_snr(data_frame, sat[0], time)
+                if(dl_snr is None):
+                    pass
+                    # print("DL SNR NONE for satellite", sat[0], "at time", time)
+                else:
+                    pass #dl_snr += np.random.normal(0, 0.5)  # add gaussian noise
+                snr.append(dl_snr)
+                timestamps.append(time)
+                time += timedelta(seconds=1)
+            lab = sat[0]
+            plt.plot(timestamps, snr, linestyle='-', label=lab)
 
-    plt.title('DL SNR over time')
-    plt.xlabel('Time (HH:MM:SS)')
-    plt.ylabel('DL SNR [dB]')
-    plt.grid(True)
-    plt.legend()
-    plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
-    plt.xticks(rotation=45)
-    plt.tight_layout()
-    os.makedirs(output_folder, exist_ok=True)
-    file_name = "2-dl_snr.png"
-    file_path = os.path.join(output_folder, file_name)
-    plt.savefig(file_path, dpi=300, bbox_inches='tight')
-    print("   Completed!\n")
+        plt.title('DL SNR over time')
+        plt.xlabel('Time (HH:MM:SS)')
+        plt.ylabel('DL SNR [dB]')
+        plt.ylim((0, 20))
+        plt.grid(True)
+        plt.legend()
+        plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
+        plt.xticks(rotation=45)
+        plt.tight_layout()
+        os.makedirs(output_folder, exist_ok=True)
+        file_name = "2-dl_snr.png"
+        file_path = os.path.join(output_folder, fname, file_name)
+        os.makedirs(os.path.join(output_folder, fname), exist_ok=True)
+        plt.savefig(file_path, dpi=300, bbox_inches='tight')
+    print("\tCompleted!\n")
 
 # ========================================================================================================= # 
 
 # 3. Average handover rate
 if(average_handover_rate):
-    print("3. Priting the average handover rate ...")
-    folder_path = Path('Ue dataframes')
+    print("3. Printing the average handover rate ...")
+    folder_path = Path('Cluster1 dataframes')
     ho_count = []
     num_ues = 0
     for file_path in folder_path.glob('*.csv'):
@@ -165,7 +189,7 @@ if(average_handover_rate):
 # 4. Average handover duration
 if(average_handover_duration):
     print("4. Priting the average handover duration ...")
-    folder_path = Path('Ue dataframes')
+    folder_path = Path('Cluster1 dataframes')
     ho_duration = []
     num_ues = 0
     for file_path in folder_path.glob('*.csv'):
@@ -222,7 +246,7 @@ if(average_handover_duration):
 # 5. Average service time before the next handover event
 if(average_service_time):
     print("5. Priting the average time before next handover ...")
-    folder_path = Path('Ue dataframes')
+    folder_path = Path('Cluster1 dataframes')
     service_time = []
     num_ues = 0
 
@@ -350,14 +374,13 @@ if(get_throughput):
     # Phase 1: know which satellite the ue_x is connected to for each time instant
     # list to collect connection data and time instant for all ues
     ues = []
-    count = 0
-    for file_path in folder_path.glob('*.csv'):
+    count = 0 # compute the throughput for only N UEs to avoid crowded plots
+    for file_path in folder_path.glob('*.csv'): # scan all the ue dataframes (ClusterN-UeXX_handover_events.csv)
         suffix = "_handover_events.csv"
-        ue_id = file_path.name.replace(suffix, "")
-
+        ue_id = file_path.name.replace(suffix, "") # ClusterN-UeXX
         if(count == N):
             break
-        df = pd.read_csv(file_path)
+        df = pd.read_csv(file_path) # read the current UE dataframe
         result = list(df[['arrival_time', 'dest_satellite']].to_records(index=False))
 
         # list where it is saved at which satellite the ue is connected for all time instants
@@ -382,7 +405,7 @@ if(get_throughput):
     # Phase 2: know the max DL/UL thr. of satellite y at specific time instant
     # Phase 3: know  how many users a satellite is connected to at a specific time instnat
     all_thr = []
-    data_frame = pd.read_csv(df_name)
+    data_frame = pd.read_csv(df_name) # TODO we now have multiple dataframe names
     for ue in ues:
         ue_id = ue[-1][0]
         ho_times = ue[-1][1]
@@ -462,12 +485,139 @@ if(get_throughput):
         
     print("   Completed!\n")
 
+
+
+# TODO 7.3 Get the throughput considering the hadover outage time
+if(get_throuthput_ho):
+    print("7.3 Plotting the average throughput considering the hangover outage time ...")
+    current_cluster_name = "Cluster1"
+    current_master_name = "200km_sc9_padova.csv"
+    folder_path = Path(current_cluster_name + ' dataframes')
+    ues_handovers_lists = []
+    count = 0 # compute the throughput for only N UEs to avoid crowded plots
+    # loop for each ue in the current cluster
+    for file_path in folder_path.glob('*.csv'): # scan all the ue dataframes (ClusterN-UeXX_handover_events.csv)
+        suffix = "_handover_events.csv"
+        ue_id = file_path.name.replace(suffix, "") # ClusterN-UeXX
+        if(count == num_ues_to_plot):
+            break
+        ue_handovers_df = pd.read_csv(file_path) # read the current UE dataframe
+        ue_out_ho_df = ue_handovers_df[ue_handovers_df['event_type'] == 'out_ho']
+        # parse arrival time
+        arr_naive = pd.to_datetime(ue_out_ho_df['arrival_time'], errors='coerce')
+        # important: the arrival time is a datetime object with localization on a specific timezone, while unix epoch time is always UTC.
+        # to avoid offset issues, we need to specify that the time is in the timezone of the simulation, (in this case europe) and
+        # convert it to UTC timezone, so we can subtract it from the departure time with no issues.
+        arr = arr_naive.dt.tz_localize('Europe/Berlin').dt.tz_convert('UTC')
+        # parse departure time (unix time is always UTC)
+        dep = pd.to_datetime(ue_out_ho_df['departure_time'], unit='s', errors='coerce', utc=True)
+        # compute the difference
+        duration_series = dep - arr
+        # convert to milliseconds
+        duration_ms = duration_series.dt.total_seconds() * 1000
+        # add a first element zero to account for the initial connection happening instantly at the beginning of the simulation (initial condition)
+        duration_ms = pd.concat([pd.Series([0]), duration_ms], ignore_index=True)
+        # print("Examining UE ", ue_id)
+        # print("Duration ms (First 5):\n", duration_ms.head())
+        ue_handovers_df['ho_duration_ms'] = duration_ms.values
+        ue_handovers_list = list(ue_handovers_df[['arrival_time', 'dest_satellite', 'ho_duration_ms']].to_records(index=False))
+        ues_handovers_lists.append((ue_id, ue_handovers_list))
+        count = count + 1
+    
+    all_thr_dl = []
+    all_thr_ul = []
+    satellite_df_path = Path("Satellite dataframes")
+    for ue_id, ue_handovers_list in ues_handovers_lists:
+
+        ho_timestamps = np.array(ue_handovers_list)['arrival_time'].tolist()
+        # print(ho_timestamps)
+
+        per_ue_throughputs_dl = []
+        per_ue_throughputs_ul = []
+        for ii, handover_item in enumerate(ue_handovers_list):
+            ho_time = datetime.strptime(handover_item[0], "%Y-%m-%d %H:%M:%S")
+            sat_name = handover_item[1]
+            ho_duration_ms = handover_item[2]
+            if(sat_name is not None and not pd.isna(sat_name)):
+                satellite_file_path = satellite_df_path / f"{sat_name}_handover_events.csv"
+                if satellite_file_path.exists():
+                    sat_df = pd.read_csv(satellite_file_path)
+                    sat_df['arrival_time'] = pd.to_datetime(sat_df['arrival_time'])
+                    num_ues = 0
+                    if(ii == len(ue_handovers_list)-1):
+                        next_ho_time = simTimeEnd
+                        break
+                    else:
+                        next_ho_time = datetime.strptime(ue_handovers_list[ii+1][0], "%Y-%m-%d %H:%M:%S")
+                    event_map = {
+                        'init_con': 1,  # Adds a user
+                        'in_ho': 1,      # Adds a user
+                        'out_ho': -1     # Removes a user
+                    }
+
+                    before_connecting_df = sat_df[sat_df['arrival_time'] < ho_time]
+                    before_connecting_df['user change'] = before_connecting_df['event_type'].map(event_map)
+                    net_sum_before = before_connecting_df['user change'].sum()
+                    after_connecting_df = sat_df[sat_df['arrival_time'].between(ho_time, next_ho_time)]
+                    after_connecting_df['user_change'] = after_connecting_df['event_type'].map(event_map)
+                    after_connecting_df.set_index('arrival_time', inplace=True)
+                    net_changes = after_connecting_df['user_change'].resample('1s').sum() + net_sum_before
+                    connected_users = net_changes.cumsum()
+                    orbit_df = pd.read_csv(current_master_name)
+
+                    time = ho_time
+                    temp_dl_thr, temp_ul_thr = [], []
+
+                    while time < next_ho_time:
+                        max_dl_thr, max_ul_thr = utils.get_max_thr(orbit_df, sat_name, time)
+                        temp_dl_throughput = max_dl_thr / connected_users[time]
+                        temp_ul_throughput = max_ul_thr / connected_users[time]
+                        if(ho_duration_ms >= 1000):
+                            temp_dl_throughput = 0
+                            temp_ul_throughput = 0
+                            ho_duration_ms -= 1000
+                        elif(ho_duration_ms > 0):
+                            temp_dl_throughput = temp_dl_throughput * (1 - ho_duration_ms/1000)
+                            temp_ul_throughput = temp_ul_throughput * (1 - ho_duration_ms/1000)
+                            ho_duration_ms = 0
+                        per_ue_throughputs_dl.append(temp_dl_throughput)
+                        per_ue_throughputs_ul.append(temp_ul_throughput)
+                        time = time + timedelta(seconds = 1)
+                     
+                else:
+                    print(f"Satellite dataframe for {sat_name} not found!")
+            else:
+                print("UE is not connected to any satellite at time ", ho_time)
+        all_thr_dl.append((ue_id, per_ue_throughputs_dl, ho_timestamps))
+        all_thr_ul.append((ue_id, per_ue_throughputs_ul))
+        print("Completed UE ", ue_id)
+        
+    print("Plotting the DL throughput considering the handover outage time ...")
+    plt.figure(figsize=(10,5))
+    for ii, id_throughput in enumerate(all_thr_dl):
+        dl_thr = list(id_throughput[1])
+        ue_id = id_throughput[0]
+        ho_times = id_throughput[2]
+        time_vector = pd.date_range(start=simTimeStart, periods=200, freq='1s')
+        plt.plot(time_vector,dl_thr[:200], label = f'UE ID {ue_id}', color=colors1[ii])
+    plt.title('DL throughputs')
+    plt.xlabel('Time [sec]')
+    plt.ylabel('Throghput [Mbit/s]')
+    plt.grid(True)
+    plt.legend()
+    os.makedirs(output_folder, exist_ok=True)
+    file_name = "7.3 DL Throughput_ho.png"
+    file_path = os.path.join(output_folder, file_name)
+    plt.savefig(file_path, dpi=300, bbox_inches='tight')
+
+
+
 # ========================================================================================================= #
 
 # 8. Average number and duration of out of services
 if(out_of_service):
     print("8. Priting the average number and durtation of out of services ...")
-    folder_path = Path('Ue dataframes')
+    folder_path = Path('Cluster1 dataframes')
     avg_lens = []
     avg_losses = []
     num_ues = 0
@@ -561,3 +711,25 @@ if(out_of_service):
     
     
     print("   Completed!\n")
+
+# ========================================================================================================= #
+
+# 9. Number of ping-pong handovers
+if(ping_pong_handovers):
+    print("9. Printing the average number of ping-pong handovers ...")
+    folder_path = Path('Cluster1 dataframes')
+    ping_pong_count = []
+    num_ues = 0
+    for file_path in folder_path.glob('*.csv'):
+        df = pd.read_csv(file_path)
+        count = 0
+        for r1, r2 in zip(df.itertuples(), df.iloc[1:].itertuples()):
+            ev1 = r1.from_satellite
+            ev2 = r2.dest_satellite
+            
+            if ev1 == ev2:
+                count += 1
+        ping_pong_count.append(count)
+        num_ues += 1
+
+    print(f"   Average number of ping-pong handovers: {np.mean(ping_pong_count)}")
