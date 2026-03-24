@@ -120,7 +120,8 @@ def get_max_thr(df, sat_name, target_time):
         
         dl_thr = float(matched_data['thr_dl'].iloc[0])
         ul_thr = float(matched_data['thr_ul'].iloc[0])
-            
+    
+    
     except KeyError as e:
         print(f"Error: Missing expected column in DataFrame - {e}")
     except ValueError as e:
@@ -163,6 +164,30 @@ def get_best_satellite_v2(visible_sats, service_sats):
         
         # calculate and return the metric
         return thr_dl / (connected_users + 1)
+        
+    # find the best satellite
+    best_satellite = max(visible_sats, key=calculate_score)
+    
+    return best_satellite
+
+def get_best_satellite_by_snr_and_thr(visible_sats, service_sats):
+
+    # fast lookup dictionary mapping {satellite_name: connected_ues}, better than the nested loop
+    # This loops through service_sats exactly once.
+    service_loads = {sat.name: sat.connected_ues for sat in service_sats}
+
+    def calculate_score(sat):
+        name = sat[0]
+        snr_dl = sat[6] + np.random.normal(0, 1)  # add gaussian noise to the SNR measurement
+        thr_dl = sat[8]
+        
+        # fast dictionary lookup: get the load if it's active, otherwise default to 0
+        connected_users = service_loads.get(name, 0)
+        
+        # combine SNR and Throughput into a single score, for example by multiplying them together
+        score = snr_dl * thr_dl / (connected_users + 1)
+
+        return score
         
     # find the best satellite
     best_satellite = max(visible_sats, key=calculate_score)
