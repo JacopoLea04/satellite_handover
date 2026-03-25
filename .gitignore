@@ -12,6 +12,7 @@ ENV/
 *.csv
 *.parquet
 *.log
+*.zip
 
 # IDE specific files
 .vscode/

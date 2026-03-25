@@ -8,6 +8,8 @@ from pathlib import Path
 import seaborn as sns
 import numpy as np
 
+pd.options.mode.chained_assignment = None  # default='warn'
+
 # ========================================================================================================= # 
 
 # 1. How many satellites in visibility over time
@@ -561,8 +563,8 @@ if(get_throuthput_ho):
                     after_connecting_df = sat_df[sat_df['arrival_time'].between(ho_time, next_ho_time)]
                     after_connecting_df['user_change'] = after_connecting_df['event_type'].map(event_map)
                     after_connecting_df.set_index('arrival_time', inplace=True)
-                    net_changes = after_connecting_df['user_change'].resample('1s').sum() + net_sum_before
-                    connected_users = net_changes.cumsum()
+                    net_changes = after_connecting_df['user_change'].resample('1s').sum() 
+                    connected_users = net_changes.cumsum() + net_sum_before
                     orbit_df = pd.read_csv(current_master_name)
 
                     time = ho_time

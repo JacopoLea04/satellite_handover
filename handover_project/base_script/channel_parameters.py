@@ -46,7 +46,7 @@ class ChannelParameters:
         """
         range_km = range_m / 1000  # Convert range to kilometers
         delta_x = math.degrees(range_km / ChannelParameters.EARTH_RADIUS_KM)
-        delta_y = delta_x * abs(math.cos(math.radians(observer_lat)))
+        delta_y = delta_x / abs(math.cos(math.radians(observer_lat)))
         # print("\n=== ChannelParameters::within_range ===")
         # print("range_km: {:.2f} km".format(range_km))
         # print("\nChecking satellite at ({:.4f}, {:.4f}) against observer at ({:.4f}, {:.4f}) with range {:.2f} km".format(satellite_lat, satellite_lon, observer_lat, observer_lon, range_km))
