@@ -8,11 +8,11 @@ from ue import Ue
 from satellite import Satellite
 
 # initial configuration
-df_name_1 = "200km_sc9_padova.csv"
+df_name_1 = "50km_sc9_padova.csv"
 data_frame_1 = pd.read_csv(df_name_1)
-df_name_2 = "200km_sc9_munich.csv"
+df_name_2 = "50km_sc9_trento.csv"
 data_frame_2 = pd.read_csv(df_name_2)
-df_name_3 = "200km_sc9_lucerna.csv"
+df_name_3 = "50km_sc9_verona.csv"
 data_frame_3 = pd.read_csv(df_name_3)
 
 # satellites parameters
@@ -66,6 +66,10 @@ with tqdm(total=total_iterations, desc="Simulating") as pbar:
         
         # Display the current time on the right side of the progress bar instead of printing it
         pbar.set_postfix(time=time.strftime("%H:%M:%S"))
+
+        # save the instant throughpout for all the ues
+        for cluster in clusters:
+            cluster.save_instant_thr(time, service_sats)
 
         # increment the time by 1 sec
         time += timedelta(seconds=1)

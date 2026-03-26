@@ -10,6 +10,9 @@ class Ue:
         self.alt = position[2]
         self.connected_to = None
         self.handover_tracker = []
+        self.ho_flag = False # save if the ue has performed ho in the current time instant
+        self.ho_duration = 0 # [ms] save the ho duration at this time instant if the ue has performed ho
+        self.thr_tracker = []
 
 
     def connect_to_satellite(self, satellite):
@@ -21,6 +24,7 @@ class Ue:
         curr_sat.disconnect_ue() # disconnect the ue from the current satellite
 
         handover_info = curr_sat.handover_manager.process_handover(time, self, dest_sat) # actual handover process
+        self.ho_duration = handover_info["duration"]
         self.handover_tracker.append(handover_info)
 
         return
@@ -49,10 +53,21 @@ class Ue:
         return self.connected_to
     
     def deactivate(self, cluster_name):
+            # handover df
             df = pd.DataFrame(self.handover_tracker)
             filename = f"{self.id}_handover_events.csv"
 
             output_folder = cluster_name + " dataframes"
+            full_path = os.path.join(output_folder, filename)
+            os.makedirs(output_folder, exist_ok=True)
+
+            df.to_csv(full_path, index=False)
+
+            # throughput df
+            df = pd.DataFrame(self.thr_tracker)
+            filename = f"{self.id}_thr_over_time.csv"
+
+            output_folder = cluster_name + " throughput"
             full_path = os.path.join(output_folder, filename)
             os.makedirs(output_folder, exist_ok=True)
 

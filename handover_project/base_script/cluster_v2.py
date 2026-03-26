@@ -104,6 +104,9 @@ class Cluster:
                 handover = (snr == None or snr < self.threshold)
             else:
                 print("!!! Something wrong, I can feel it: no valid handover condition provided!")
+
+            # update ho_flag for the current ue (save if the ue has performed ho in this time instant)
+            ue.ho_flag = handover
             if(handover):
                 if visible_sats is None:
                     # visible_sats is a tuple representing a satellite, but the number of connected users is at zero
@@ -175,3 +178,39 @@ class Cluster:
                         ue.initial_connection_to(time, dest_sat)
                     else:
                         ue.handover(time, dest_sat)
+
+
+    def save_instant_thr(self, time, service_sats):
+
+        for ue in self.list_ues:
+            # data collection
+            serv_sat = ue.connected_to
+            max_dl_thr, max_ul_thr = utils.get_max_thr(self.frame, serv_sat.name, time)
+            connected_users = serv_sat.connected_ues
+            ho_duration_ms = 0
+            if(ue.ho_flag):
+                ho_duration_ms = ue.ho_duration
+
+            # instant throughput computation
+            temp_dl_throughput = max_dl_thr / connected_users
+            temp_ul_throughput = max_ul_thr / connected_users
+            if(ho_duration_ms >= 1000):
+                temp_dl_throughput = 0
+                temp_ul_throughput = 0
+                ho_duration_ms -= 1000
+            elif(ho_duration_ms > 0):
+                temp_dl_throughput = temp_dl_throughput * (1 - ho_duration_ms/1000)
+                temp_ul_throughput = temp_ul_throughput * (1 - ho_duration_ms/1000)
+
+            thr_info = {
+                        "time": time,
+                        "ue.id": ue.id,
+                        "sat.id": serv_sat.name,
+                        "max_dl_thr": max_dl_thr,
+                        "max_ul_thr": max_ul_thr,
+                        "connected_users": connected_users,
+                        "ho_duration": ho_duration_ms,
+                        "dl_thr": temp_dl_throughput,
+                        "ul_thr": temp_ul_throughput
+                    }
+            ue.thr_tracker.append(thr_info)

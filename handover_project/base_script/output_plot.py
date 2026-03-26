@@ -27,7 +27,9 @@ ho_handled = False
 # 7. Average throughput
 get_throughput = False
 # 7.3 throughput considering HO outage time
-get_throuthput_ho = True
+get_throuthput_ho = False
+# 7.3.2 throughput considering HO outage time 
+get_throuthput_ho_v2 = True
 # 8. Average number and duration of out of services
 out_of_service = False
 # 9. Nu,ber of ping-pong handovers 
@@ -37,11 +39,11 @@ ping_pong_handovers = True
 
 output_folder = "plots"
 # df_name = "75km_satellite_df.csv"
-df_padova = "200km_sc9_padova.csv"
-df_monaco = "200km_sc9_munich.csv"
-df_lucerna = "200km_sc9_lucerna.csv"
-dfnames = [df_padova, df_monaco, df_lucerna]
-fnames = ["padova", "munich", "lucerna"]
+df_padova = "50km_sc9_padova.csv"
+df_verona = "50km_sc9_verona.csv"
+df_trento = "50km_sc9_trento.csv"
+dfnames = [df_padova, df_verona, df_trento]
+fnames = ["padova", "verona", "trento"]
 
 period = '20 min'
 simTimeStart = datetime(2026, 2, 19, 0, 0, 0) 
@@ -489,7 +491,7 @@ if(get_throughput):
 
 
 
-# TODO 7.3 Get the throughput considering the hadover outage time
+# 7.3 Get the throughput considering the hadover outage time
 if(get_throuthput_ho):
     print("7.3 Plotting the average throughput considering the hangover outage time ...")
     current_cluster_name = "Cluster1"
@@ -612,7 +614,60 @@ if(get_throuthput_ho):
     file_path = os.path.join(output_folder, file_name)
     plt.savefig(file_path, dpi=300, bbox_inches='tight')
 
+    print("   Completed!\n")
 
+
+# 7.3.2 Get the throughput considering the hadover outage time (v2)
+if(get_throuthput_ho_v2):
+    print("7.3.2 Plotting the average throughput considering the hangover outage time ...")
+
+    folder_path_1 = Path('Cluster1 throughput')
+    folder_path_2 = Path('Cluster2 throughput')
+    folder_path_3 = Path('Cluster3 throughput')
+
+    ues_thr_1 = []
+    for file_path in folder_path_1.glob('*.csv'):
+        suffix = "_thr_over_time.csv"
+        ue_id = file_path.name.replace(suffix, "") # ClusterN-UeXX
+        df = pd.read_csv(file_path)
+        thr = df['dl_thr'].tolist()
+        ues_thr_1.append(thr)
+    avg_thr_1 = np.mean(ues_thr_1, axis=0).tolist()
+    
+    ues_thr_2 = []
+    for file_path in folder_path_2.glob('*.csv'):
+        suffix = "_thr_over_time.csv"
+        ue_id = file_path.name.replace(suffix, "") # ClusterN-UeXX
+        df = pd.read_csv(file_path)
+        thr = df['dl_thr'].tolist()
+        ues_thr_2.append(thr)
+    avg_thr_2 = np.mean(ues_thr_2, axis=0).tolist()
+
+    ues_thr_3 = []
+    for file_path in folder_path_3.glob('*.csv'):
+        suffix = "_thr_over_time.csv"
+        ue_id = file_path.name.replace(suffix, "") # ClusterN-UeXX
+        df = pd.read_csv(file_path)
+        thr = df['dl_thr'].tolist()
+        ues_thr_3.append(thr)
+    avg_thr_3 = np.mean(ues_thr_3, axis=0).tolist()
+
+    plt.figure(figsize=(10,5))
+    time_vector = pd.date_range(start=simTimeStart, periods=len(avg_thr_1), freq='1s')
+    plt.plot(time_vector, avg_thr_1, label = f'Cluster1', color=colors1[0])
+    plt.plot(time_vector, avg_thr_2, label = f'Cluster2', color=colors1[1])
+    plt.plot(time_vector, avg_thr_3, label = f'Cluster3', color=colors1[2])
+    plt.title('Average DL throughputs over time')
+    plt.xlabel('Time')
+    plt.ylabel('DL Throghput [Mbit/s]')
+    plt.grid(True)
+    plt.legend()
+    os.makedirs(output_folder, exist_ok=True)
+    file_name = "7.3.2 DL Throughput_ho.png"
+    file_path = os.path.join(output_folder, file_name)
+    plt.savefig(file_path, dpi=300, bbox_inches='tight')
+
+    print("   Completed!\n")
 
 # ========================================================================================================= #
 
