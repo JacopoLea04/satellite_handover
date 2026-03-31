@@ -1,6 +1,7 @@
 from skyfield.api import load
 from datetime import datetime, timedelta
 import numpy as np
+import random
 
 from satellite import Satellite
 from channel_parameters import ChannelParameters
@@ -89,7 +90,8 @@ def get_satellites_at_time(df, target_time):
                 float(row['snr_ul']),
                 float(row['thr_dl']),
                 float(row['thr_ul']),
-                int(row['connected_users'])
+                int(row['connected_users']),
+                float(row['occurrence_countdown'])
             )
             satellites.append(sat_info)
             
@@ -147,6 +149,55 @@ def get_best_satellite(visible_sats, service_sats):
         key=lambda sat: sat[8] / (sat[10] + 1)
     )
     
+    return best_satellite
+
+def get_random_satellite(visible_sats):
+
+    num = len(visible_sats)
+    if(num == 0):
+        return None
+    
+    random_index = random.randint(0, num-1)
+    best_satellite = visible_sats[random_index]
+
+    return best_satellite
+
+def get_max_visibility_satellite(visible_sats, time, df):
+
+    if(len(visible_sats) == 0):
+        return None
+
+    for index, vis_sat in enumerate(visible_sats):
+        temp = list(vis_sat)
+        temp[10] = get_visibility_time(vis_sat[0], time, df)
+        vis_sat = temp
+    # best_satellite = max(visible_sats, key=lambda sat: sat[10])
+    visible_sats.sort(key=lambda sat: sat[10])
+    length = min(5, len(visible_sats))-1
+    best_satellite = random.choice(visible_sats[:length])
+
+
+    return best_satellite
+
+def get_visibility_time(sat_name, target_time, df):
+
+    vis_time = 0
+
+    # Convert the entire 'time' column from strings to datetime objects
+    df['time'] = pd.to_datetime(df['time'])
+    vis_time = len(df[(df['sat_name'] == sat_name) & (df['time'] >= target_time)])
+
+    return vis_time
+
+def get_max_visibility_satellite_v2(visible_sats, time, df):
+
+    if(len(visible_sats) == 0):
+        return None
+
+    visible_sats.sort(key=lambda sat: sat[11])
+    length = min(5, len(visible_sats))-1
+    best_satellite = random.choice(visible_sats[:length])
+
     return best_satellite
 
 def get_best_satellite_v2(visible_sats, service_sats):

@@ -86,6 +86,7 @@ class Cluster:
         visible_sats = None # optimized so the visible satellites are computed at most once per time instant
         # round to the closest sec
         round_time = (time + timedelta(microseconds=500000)).replace(microsecond=0)
+        max_visible_time_sat = None
 
         for ue in random_list_ues:
             # just lower than the actual treshold
@@ -102,6 +103,8 @@ class Cluster:
             if(ho_condition == "SNR"):
                 # handover condition (satellite out of visibility or snr lower than trheshold)
                 handover = (snr == None or snr < self.threshold)
+            elif(ho_condition == "VISIBILITY"):
+                handover = (curr_sat == None or snr is None)
             else:
                 print("!!! Something wrong, I can feel it: no valid handover condition provided!")
 
@@ -117,6 +120,12 @@ class Cluster:
                     best_sat = utils.get_best_satellite(visible_sats, service_sats)
                 elif(sat_selection_condition == "SNR_THR"):
                     best_sat = utils.get_best_satellite_by_snr_and_thr(visible_sats, service_sats)
+                elif(sat_selection_condition == "RANDOM"):
+                    best_sat = utils.get_random_satellite(visible_sats)
+                elif(sat_selection_condition == "MAX_VISIBILITY"):
+                    if(not max_visible_time_sat):
+                        max_visible_time_sat = utils.get_max_visibility_satellite_v2(visible_sats, time, self.frame)
+                    best_sat = max_visible_time_sat
                 else:
                     print("!!! Something wrong, I can feel it: no valid satellite selection criterion provided")
                 

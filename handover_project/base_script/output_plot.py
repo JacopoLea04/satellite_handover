@@ -17,11 +17,11 @@ visible_sats_over_time = False
 # 2. Evolution of N satellites SNR over time
 snr_over_time = False
 # 3. Average handover rate 
-average_handover_rate = False
+average_handover_rate = True
 # 4. Average handover duration
-average_handover_duration = False
+average_handover_duration = True
 # 5. Average service time before the next handover event
-average_service_time = False
+average_service_time = True
 # 6. Number of handover processes handled by each satelliteprint
 ho_handled = False
 # 7. Average throughput
@@ -32,7 +32,7 @@ get_throuthput_ho = False
 get_throuthput_ho_v2 = True
 # 8. Average number and duration of out of services
 out_of_service = False
-# 9. Nu,ber of ping-pong handovers 
+# 9. Number of ping-pong handovers
 ping_pong_handovers = True
 
 
@@ -143,33 +143,37 @@ if(snr_over_time):
 # 3. Average handover rate
 if(average_handover_rate):
     print("3. Printing the average handover rate ...")
-    folder_path = Path('Cluster1 dataframes')
-    ho_count = []
-    num_ues = 0
-    for file_path in folder_path.glob('*.csv'):
-        df = pd.read_csv(file_path)
-        count = len(df[df['event_type'] == 'out_ho'])
-        ho_count.append(count)
-        num_ues += 1
+    folder_path_1 = Path('Cluster1 dataframes')
+    folder_path_2 = Path('Cluster2 dataframes')
+    folder_path_3 = Path('Cluster3 dataframes') 
 
-    # 3.1
-    fig, ax1 = plt.subplots(figsize=(10, 5))
-    ax1.hist(ho_count, bins=range(min(ho_count), max(ho_count) + 2), 
-            color='skyblue', edgecolor='black', align='left', alpha=0.7)
-    ax1.set_xlabel('Number of Handovers')
-    ax1.set_ylabel('Number of UEs (Frequency)', color='skyblue')
-    ax1.tick_params(axis='y', labelcolor='skyblue')
-    ax1.grid(axis='y', alpha=0.3)
+    for folder_path in [folder_path_1, folder_path_2, folder_path_3]:
+        ho_count = []
+        num_ues = 0
+        for file_path in folder_path.glob('*.csv'):
+            df = pd.read_csv(file_path)
+            count = len(df[df['event_type'] == 'out_ho'])
+            ho_count.append(count)
+            num_ues += 1
 
-    ax2 = ax1.twinx() 
-    sns.kdeplot(ho_count, fill=True, color="orange", ax=ax2)
-    ax2.set_ylabel('Probability Density', color='orange')
-    ax2.tick_params(axis='y', labelcolor='orange')
+        # 3.1
+        fig, ax1 = plt.subplots(figsize=(10, 5))
+        ax1.hist(ho_count, bins=range(min(ho_count), max(ho_count) + 2), 
+                color='skyblue', edgecolor='black', align='left', alpha=0.7)
+        ax1.set_xlabel('Number of Handovers')
+        ax1.set_ylabel('Number of UEs (Frequency)', color='skyblue')
+        ax1.tick_params(axis='y', labelcolor='skyblue')
+        ax1.grid(axis='y', alpha=0.3)
 
-    plt.title(f'Distribution & Density of Handovers ({period} Period)')
-    os.makedirs(output_folder, exist_ok=True)
-    file_path = os.path.join(output_folder, "3.1-pdf_ho_plot.png")
-    plt.savefig(file_path, dpi=300, bbox_inches='tight')
+        ax2 = ax1.twinx() 
+        sns.kdeplot(ho_count, fill=True, color="orange", ax=ax2)
+        ax2.set_ylabel('Probability Density', color='orange')
+        ax2.tick_params(axis='y', labelcolor='orange')
+
+        plt.title(f'Distribution & Density of Handovers ({period} Period)')
+        os.makedirs(output_folder, exist_ok=True)
+        file_path = os.path.join(output_folder, f"3.1-pdf_ho_plot_{folder_path.name}.png")
+        plt.savefig(file_path, dpi=300, bbox_inches='tight')
 
     # 3.2
     sorted_data = np.sort(ho_count)
@@ -250,47 +254,51 @@ if(average_handover_duration):
 # 5. Average service time before the next handover event
 if(average_service_time):
     print("5. Priting the average time before next handover ...")
-    folder_path = Path('Cluster1 dataframes')
-    service_time = []
-    num_ues = 0
+    folder_path_1 = Path('Cluster1 dataframes')
+    folder_path_2 = Path('Cluster2 dataframes')
+    folder_path_3 = Path('Cluster3 dataframes')
 
-    for file_path in folder_path.glob('*.csv'):
-        df = pd.read_csv(file_path)
-        df['arrival_time'] = pd.to_datetime(df['arrival_time'], errors='coerce')
-        time_diffs_series = []
-        # take two consecutive rows per iteration
-        for r1, r2 in zip(df.itertuples(), df.iloc[1:].itertuples()):
-            
-            # Ora r1 è la riga attuale, r2 è la successiva
-            t1, ev1 = r1.arrival_time, r1.event_type
-            t2, ev2 = r2.arrival_time, r2.event_type
-            
+    for folder_path in [folder_path_1, folder_path_2, folder_path_3]:
+        service_time = []
+        num_ues = 0
 
-            if ev1 != "out_serv" and ev2 != "out_serv":
-                duration = (t2 - t1).total_seconds()
-                time_diffs_series.append(duration)
+        for file_path in folder_path.glob('*.csv'):
+            df = pd.read_csv(file_path)
+            df['arrival_time'] = pd.to_datetime(df['arrival_time'], errors='coerce')
+            time_diffs_series = []
+            # take two consecutive rows per iteration
+            for r1, r2 in zip(df.itertuples(), df.iloc[1:].itertuples()):
+                
+                # Ora r1 è la riga attuale, r2 è la successiva
+                t1, ev1 = r1.arrival_time, r1.event_type
+                t2, ev2 = r2.arrival_time, r2.event_type
+                
 
-        service_time.append(np.mean(time_diffs_series))
-        num_ues += 1
+                if ev1 != "out_serv" and ev2 != "out_serv":
+                    duration = (t2 - t1).total_seconds()
+                    time_diffs_series.append(duration)
 
-    ''' # Old version
-    for file_path in folder_path.glob('*.csv'):
-        df = pd.read_csv(file_path)
-        df['arrival_time'] = pd.to_datetime(df['arrival_time'], errors='coerce')
-        time_diffs_series = df['arrival_time'].diff().dt.total_seconds().dropna().astype(int).tolist()
-        service_time.append(np.mean(time_diffs_series))
-        num_ues += 1
-    '''
+            service_time.append(np.mean(time_diffs_series))
+            num_ues += 1
 
-    # 5.1
-    plt.figure(figsize=(10, 5))
-    sns.kdeplot(service_time, fill=True, color="orange")
-    plt.title(f'Probability Density of Service Time per {num_ues} UEs ({period} Period)')
-    plt.xlabel('Duration [s]')
-    os.makedirs(output_folder, exist_ok=True)
-    file_name = "5.1-pdf_service_time.png"
-    file_path = os.path.join(output_folder, file_name)
-    plt.savefig(file_path, dpi=300, bbox_inches='tight')
+        ''' # Old version
+        for file_path in folder_path.glob('*.csv'):
+            df = pd.read_csv(file_path)
+            df['arrival_time'] = pd.to_datetime(df['arrival_time'], errors='coerce')
+            time_diffs_series = df['arrival_time'].diff().dt.total_seconds().dropna().astype(int).tolist()
+            service_time.append(np.mean(time_diffs_series))
+            num_ues += 1
+        '''
+
+        # 5.1
+        plt.figure(figsize=(10, 5))
+        sns.kdeplot(service_time, fill=True, color="orange")
+        plt.title(f'Probability Density of Service Time per {num_ues} UEs ({period} Period)')
+        plt.xlabel('Duration [s]')
+        os.makedirs(output_folder, exist_ok=True)
+        file_name = f"5.1-pdf_service_time_{folder_path.name}.png"
+        file_path = os.path.join(output_folder, file_name)
+        plt.savefig(file_path, dpi=300, bbox_inches='tight')
 
     # 5.2
     sorted_data = np.sort(service_time)
@@ -655,8 +663,11 @@ if(get_throuthput_ho_v2):
     plt.figure(figsize=(10,5))
     time_vector = pd.date_range(start=simTimeStart, periods=len(avg_thr_1), freq='1s')
     plt.plot(time_vector, avg_thr_1, label = f'Cluster1', color=colors1[0])
+    print("   Cluster1 avg thr: ", np.mean(avg_thr_1))
     plt.plot(time_vector, avg_thr_2, label = f'Cluster2', color=colors1[1])
+    print("   Cluster2 avg thr: ", np.mean(avg_thr_2))
     plt.plot(time_vector, avg_thr_3, label = f'Cluster3', color=colors1[2])
+    print("   Cluster3 avg thr: ", np.mean(avg_thr_3))
     plt.title('Average DL throughputs over time')
     plt.xlabel('Time')
     plt.ylabel('DL Throghput [Mbit/s]')

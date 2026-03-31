@@ -8,24 +8,28 @@ from ue import Ue
 from satellite import Satellite
 
 # initial configuration
-df_name_1 = "50km_sc9_padova.csv"
+df_name_1 = "200km_sc9_padova_countdown.csv"
 data_frame_1 = pd.read_csv(df_name_1)
-df_name_2 = "50km_sc9_trento.csv"
+df_name_2 = "200km_sc9_munich_countdown.csv"
 data_frame_2 = pd.read_csv(df_name_2)
-df_name_3 = "50km_sc9_verona.csv"
+df_name_3 = "200km_sc9_lucerna_countdown.csv"
 data_frame_3 = pd.read_csv(df_name_3)
 
 # satellites parameters
 simTime = timedelta(minutes=20)
-servers = 1
+servers = 5
 mu = 1/(30*1e-3) # default is 1/(30*1e-3)
 num_ues = 1000
-ho_condition = "SNR"
-# TODO: implement a handover threshold time: the handover condition shall be satisfied for a certain time before the handover is triggered.
-# possible options are:
+
+########### ho_condtion ###########
+# "SNR": if the SNR goes under a certain threshold then handover to a new satellite
+# "VISIBILITY": handover only when the current service satellite goes out of visibility
+########### sat_selection_condition ###########
 # "AVL_THR": the satellite with the highest available throughput is selected as target satellite
 # "SNR_THR": the satellite with hightest product thr*snr is selected as target satellite
-sat_selection_condition = "AVL_THR"
+# "RANDOM": a random satellite within the ones in visibility
+# "MAX_VISIBILITY": the satellite with the longer visibility window from the current time instant
+
 
 # parsing input parameters 
 parser = argparse.ArgumentParser(description="Satellite Simulation Script")
@@ -61,8 +65,10 @@ with tqdm(total=total_iterations, desc="Simulating") as pbar:
     
     # Monitor the SNR of the current connections and apply conditional handover if needed
     while time < end_sim_time:
-        for cluster in clusters:
-            cluster.monitor(time, service_sats, ho_condition, sat_selection_condition)
+
+        cluster1.monitor(time, service_sats, "SNR", "AVL_THR")
+        cluster2.monitor(time, service_sats, "VISIBILITY", "MAX_VISIBILITY")
+        cluster3.monitor(time, service_sats, "VISIBILITY", "RANDOM")
         
         # Display the current time on the right side of the progress bar instead of printing it
         pbar.set_postfix(time=time.strftime("%H:%M:%S"))
