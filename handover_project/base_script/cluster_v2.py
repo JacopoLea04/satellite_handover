@@ -124,8 +124,9 @@ class Cluster:
                     best_sat = utils.get_random_satellite(visible_sats)
                 elif(sat_selection_condition == "MAX_VISIBILITY"):
                     if(not max_visible_time_sat):
-                        max_visible_time_sat = utils.get_max_visibility_satellite_v2(visible_sats, time, self.frame)
-                    best_sat = max_visible_time_sat
+                        max_visible_time_sat = utils.get_max_visibility_satellite_v2(visible_sats, time, self.frame, fraction = 0.3, n_min = 5)
+                    index = random.randint(0, len(max_visible_time_sat)-1)
+                    best_sat = max_visible_time_sat[index]
                 else:
                     print("!!! Something wrong, I can feel it: no valid satellite selection criterion provided")
                 
