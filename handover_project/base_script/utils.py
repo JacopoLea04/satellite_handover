@@ -195,13 +195,13 @@ def get_max_visibility_satellite_v2(visible_sats, time, df, fraction = 0.3, n_mi
         return None
     visible_sats.sort(key=lambda sat : sat[11], reverse = True)
     # best_sat = max(visible_sats, key=lambda sat: sat[11])
-    print("we have ", len(visible_sats), " visible satellites.")
+    # print("we have ", len(visible_sats), " visible satellites.")
     if(n_min > len(visible_sats)):
-        print("only ", len(visible_sats), " visible. returning ", visible_sats[0][0], " with residual visibility of ", visible_sats[0][11], " (and others).")
+        # print("only ", len(visible_sats), " visible. returning ", visible_sats[0][0], " with residual visibility of ", visible_sats[0][11], " (and others).")
         return visible_sats
     else: 
         n_min = max(n_min, int(len(visible_sats)*fraction))
-        print("returning top ", n_min, " satellites. Top one ", visible_sats[0][0], " with residual visibility of ", visible_sats[0][11], " (and others).")
+        # print("returning top ", n_min, " satellites. Top one ", visible_sats[0][0], " with residual visibility of ", visible_sats[0][11], " (and others).")
         return visible_sats[:n_min]
     #return sorted_visible_satellites[0]
     # visible_sats.sort(key=lambda sat: sat[11])
