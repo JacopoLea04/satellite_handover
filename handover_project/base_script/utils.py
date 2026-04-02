@@ -162,7 +162,7 @@ def get_random_satellite(visible_sats):
 
     return best_satellite
 
-def get_max_visibility_satellite(visible_sats, time, df):
+def get_max_visibility_satellite(visible_sats, time, df): # old function, unused
 
     if(len(visible_sats) == 0):
         return None
@@ -193,12 +193,14 @@ def get_max_visibility_satellite_v2(visible_sats, time, df):
 
     if(len(visible_sats) == 0):
         return None
-
-    visible_sats.sort(key=lambda sat: sat[11])
-    length = min(5, len(visible_sats))-1
-    best_satellite = random.choice(visible_sats[:length])
-
-    return best_satellite
+    best_sat = max(visible_sats, key=lambda sat: sat[11])
+    print("returning ", best_sat[0], " with residual visibility of ", best_sat[11], ".")
+    return best_sat
+    # visible_sats.sort(key=lambda sat: sat[11])
+    # length = min(5, len(visible_sats))-1
+    # print("returning ", visible_sats[0][0], " with residual visibility of ", visible_sats[0][11], ".")
+    # best_satellite = random.choice(visible_sats[:length])
+    # return best_satellite
 
 def get_best_satellite_v2(visible_sats, service_sats):
 
