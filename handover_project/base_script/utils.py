@@ -210,6 +210,17 @@ def get_max_visibility_satellite_v2(visible_sats, time, df, fraction = 0.3, n_mi
     # best_satellite = random.choice(visible_sats[:length])
     # return best_satellite
 
+def get_max_elevation_satellite(visible_sats, fraction = 0.3, n_min=1):
+
+    if(len(visible_sats) == 0):
+        return None
+
+    visible_sats.sort(key=lambda sat : sat[4], reverse = True)
+    n_min = max(n_min, int(len(visible_sats)*fraction))
+    index = random.randint(0, len( visible_sats[:n_min])-1)
+    best_satellite =  visible_sats[:n_min][index]
+    return best_satellite
+
 def get_best_satellite_v2(visible_sats, service_sats):
 
     # fast lookup dictionary mapping {satellite_name: connected_ues}, better than the nested loop

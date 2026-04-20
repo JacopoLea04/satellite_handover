@@ -29,6 +29,7 @@ num_ues = 1000
 # "SNR_THR": the satellite with hightest product thr*snr is selected as target satellite
 # "RANDOM": a random satellite within the ones in visibility
 # "MAX_VISIBILITY": the satellite with the longer visibility window from the current time instant
+# "MAX_ELEVATION": the satellite with the highest elevation angle from the current time instant
 
 
 # parsing input parameters 
