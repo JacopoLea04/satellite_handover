@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import os
 from pathlib import Path
+from scipy.stats import gaussian_kde
 import seaborn as sns
 import numpy as np
 
@@ -25,15 +26,15 @@ average_service_time = False
 # 6. Number of handover processes handled by each satellite
 ho_handled = False
 # 7. Average throughput
-get_throughput = False
+# get_throughput = False
 # 7.3 throughput considering HO outage time
-get_throuthput_ho = False
+# get_throuthput_ho = False
 # 7.3.2 throughput considering HO outage time 
-get_throuthput_ho_v2 = False
+get_throuthput_ho_v2 = True
 # 8. Average number and duration of out of services
 out_of_service = False
 # 9. Number of ping-pong handovers
-ping_pong_handovers = True
+ping_pong_handovers = False
 
 save_plot_values = False
 
@@ -48,6 +49,7 @@ dfnames = [df_padova, df_munich, df_lucerna]
 fnames = ["padova", "munich", "lucerna"]
 
 period = '20 min'
+num_ues_label = 1000
 simTimeStart = datetime(2026, 2, 19, 0, 0, 0) 
 simTimeEnd = datetime(2026, 2, 19, 0, 20, 0) 
 time_step = timedelta(seconds=1)
@@ -62,6 +64,8 @@ colors2 = ['blue', 'red', 'green', 'orange', 'purple', 'brown', 'pink', 'gray', 
 # 1. How many satellites in visibility over time
 if(visible_sats_over_time):
     print("1. Printing the number of visible satellites ...")
+    plt.figure(figsize=(10, 5))
+    index = 0
     for df_name, fname in zip(dfnames, fnames):
         data_frame = pd.read_csv(df_name)
         time = datetime(2026, 2, 19, 0, 0, 0)
@@ -75,9 +79,10 @@ if(visible_sats_over_time):
             timestamps.append(time)
             time += timedelta(seconds=1)
 
-        plt.figure(figsize=(10, 5))
-        plt.plot(timestamps, visible_sats, color='blue', linestyle='-')
+        plt.plot(timestamps, visible_sats, color=colors1[index], linestyle='-', label = fname)
+        index += 1
         plt.title('Visible Satellites Over Time')
+        plt.legend()
         plt.xlabel('Time (HH:MM:SS)')
         plt.ylabel('Number of Visible Satellites')
         plt.grid(True)
@@ -86,8 +91,8 @@ if(visible_sats_over_time):
         plt.tight_layout()
         os.makedirs(output_folder, exist_ok=True)
         file_name = "1-satellite_visibility.png"
-        file_path = os.path.join(output_folder, fname, file_name)
-        os.makedirs(os.path.join(output_folder, fname), exist_ok=True)
+        file_path = os.path.join(output_folder, file_name)
+        #os.makedirs(os.path.join(output_folder, fname), exist_ok=True)
         plt.savefig(file_path, dpi=300, bbox_inches='tight')
 
         if(save_plot_values):
@@ -95,8 +100,8 @@ if(visible_sats_over_time):
             csv_file_name = "1-satellite_visibility_values.csv"
             csv_file_path = os.path.join(output_folder, fname, csv_file_name)
             values_df.to_csv(csv_file_path, index=False)
-        plt.close()
 
+    plt.close()
     print("   Completed!\n")
 
 # ========================================================================================================= # 
@@ -113,7 +118,6 @@ if(snr_over_time):
         visible_satellites = utils.get_satellites_at_time(data_frame, time)
         n_visible = min(N, len(visible_satellites))
         visible_sats = visible_satellites[:n_visible]
-        plt.figure(figsize=(10, 5))
         for sat in visible_sats:
             print("\t\tSAT ID", sat[0])
             timestamps = []
@@ -154,172 +158,143 @@ if(snr_over_time):
 # 3. Average handover rate
 if(average_handover_rate):
     print("3. Printing the average handover rate ...")
+
+    fig, ax = plt.subplots(figsize=(12, 6))
     for i, (df_name, fname) in enumerate(zip(dfnames, fnames)):
         folder_path = Path("Cluster" + str(i+1) + " dataframes")
         ho_count = []
-        num_ues = 0
+        
         for file_path in folder_path.glob('*.csv'):
             df = pd.read_csv(file_path)
             count = len(df[df['event_type'] == 'out_ho'])
             ho_count.append(count)
-            num_ues += 1
 
-        # 3.1
-        fig, ax1 = plt.subplots(figsize=(10, 5))
-        ax1.hist(ho_count, bins=range(min(ho_count), max(ho_count) + 2), 
-                color='skyblue', edgecolor='black', align='left', alpha=0.7)
-        ax1.set_xlabel('Number of Handovers')
-        ax1.set_ylabel('Number of UEs (Frequency)', color='skyblue')
-        ax1.tick_params(axis='y', labelcolor='skyblue')
-        ax1.grid(axis='y', alpha=0.3)
+        if len(ho_count) < 2:
+            print(f"   Cluster {i+1}: not enough data, skipping.")
+            continue
 
-        ax2 = ax1.twinx() 
-        sns.kdeplot(ho_count, fill=True, color="orange", ax=ax2)
-        sns.kdeplot(ho_count, fill=False, color="orange", alpha=0, ax=ax2)
-        ax2.set_ylabel('Probability Density', color='orange')
-        ax2.tick_params(axis='y', labelcolor='orange')
+        kde = gaussian_kde(ho_count)
+        x_min, x_max = min(ho_count), max(ho_count)
+        margin = (x_max - x_min) * 0.2
+        kde_x = np.linspace(x_min - margin, x_max + margin, 500)
+        kde_y = kde(kde_x)
 
-        plt.title(f'Distribution & Density of Handovers ({period} Period)')
-        os.makedirs(output_folder, exist_ok=True)
-        file_path_png = os.path.join(output_folder, fname, f"3.1-pdf_ho_plot.png")
-        plt.savefig(file_path_png, dpi=300, bbox_inches='tight')
+        color = plt.cm.tab10(i)
+        ax.plot(kde_x, kde_y, color=color, linewidth=1.5)
+        ax.fill_between(kde_x, kde_y, alpha=0.2, color=color,
+                        label=f"Cluster {i+1}: {fname}")
+        idx_max = np.argmax(kde_y)
+        x_peak, y_peak = kde_x[idx_max], kde_y[idx_max]
+        ax.plot(x_peak, y_peak, marker='*', color=color,
+                markersize=14, markeredgecolor='black',
+                zorder=5, label='_nolegend_')
+        ax.annotate(f'  {x_peak:.1f}', xy=(x_peak, y_peak),
+                    fontsize=8, color=color, va='bottom')
 
         if(save_plot_values):
-            # Export the discrete Histogram data (for LaTeX \addplot ybar)
-            ho_count_counts = pd.Series(ho_count).value_counts().sort_index()
-            hist_df = pd.DataFrame({
-                'number_of_handovers': ho_count_counts.index, 
-                'count': ho_count_counts.values
-            })
-            csv_file_name_hist = f"3.1-handover_counts.csv"
-            csv_file_path_hist = os.path.join(output_folder, fname, csv_file_name_hist)
-            hist_df.to_csv(csv_file_path_hist, index=False)
-            
-            # Export the continuous KDE data (for LaTeX smooth plot)
-            # We extract from ax2 because that's where the KDE was drawn
-            kde_line = ax2.lines[0]
-            kde_x = kde_line.get_xdata()
-            kde_y = kde_line.get_ydata()
-            
-            kde_df = pd.DataFrame({
-                'number_of_handovers': kde_x, 
-                'density': kde_y
-            })
-            csv_file_name_kde = f"3.1-handover_kde.csv"
-            csv_file_path_kde = os.path.join(output_folder, fname, csv_file_name_kde)
-            kde_df.to_csv(csv_file_path_kde, index=False)
+            os.makedirs(os.path.join(output_folder, fname), exist_ok=True)
+            kde_df = pd.DataFrame({'number_of_handovers': kde_x, 'density': kde_y})
+            kde_df.to_csv(os.path.join(output_folder, fname, "3.1-handover_kde.csv"), index=False)
 
-        # 3.2
-        sorted_data = np.sort(ho_count)
-        yvals = np.arange(len(sorted_data)) / float(len(sorted_data) - 1)
-        plt.figure(figsize=(10,5))
-        plt.plot(sorted_data, yvals, marker='.', linestyle='none')
-        plt.title(f'Cumulative Distribution of Handovers per {num_ues} UEs ({period} Period)')
-        plt.xlabel('Number of Handovers')
-        plt.ylabel('CDF')
-        plt.grid(True)
-        os.makedirs(output_folder, exist_ok=True)
-        file_name = "3.2-cdf_ho_rate.png"
-        file_path = os.path.join(output_folder, fname, file_name)
-        plt.savefig(file_path, dpi=300, bbox_inches='tight')
-        if(save_plot_values):
-            values_df = pd.DataFrame({'number_of_handovers': sorted_data, 'probability': yvals})
-            csv_file_name = "3.2-cdf_ho_rate_values.csv"
-            csv_file_path = os.path.join(output_folder, fname, csv_file_name)
-            values_df.to_csv(csv_file_path, index=False)
-        plt.close()
+    ax.set_title(f'Probability Density of Handovers - All Clusters ({period} Period) - {num_ues_label} UEs')
+    ax.set_xlabel('Number of Handovers')
+    ax.set_ylabel('Probability Density')
+    ax.grid(axis='y', alpha=0.3)
+    ax.legend(title="Clusters", bbox_to_anchor=(1.05, 1), loc='upper left')
+    
+    os.makedirs(output_folder, exist_ok=True)
+    combined_file_path = os.path.join(output_folder, "3-handover_pdf.png")
+    fig.savefig(combined_file_path, dpi=300, bbox_inches='tight')
+    plt.show()
+    plt.close()
+    print("   Combined PDF Plot Completed!\n")
 
-    print("   Completed!\n")
-
+        
 # ========================================================================================================= # 
 
 # 4. Average handover duration
 if(average_handover_duration):
-    print("4. Priting the average handover duration ...")
+    print("4. Printing the average handover duration ...")
+
+    fig, ax = plt.subplots(figsize=(12, 6))
+
     for i, (df_name, fname) in enumerate(zip(dfnames, fnames)):
         folder_path = Path("Cluster" + str(i+1) + " dataframes")
         ho_duration = []
         num_ues = 0
+
         for file_path in folder_path.glob('*.csv'):
             df = pd.read_csv(file_path)
             df = df[df['event_type'] == 'out_ho']
-            # parse arrival time
             arr_naive = pd.to_datetime(df['arrival_time'], errors='coerce')
-            # important: the arrival time is a datetime object with localization on a specific timezone, while unix epoch time is always UTC.
-            # to avoid offset issues, we need to specify that the time is in the timezone of the simulation, (in this case europe) and
-            # convert it to UTC timezone, so we can subtract it from the departure time with no issues.
             arr = arr_naive.dt.tz_localize('Europe/Berlin').dt.tz_convert('UTC')
-
-            # parse departure time (unix time is always UTC)
             dep = pd.to_datetime(df['departure_time'], unit='s', errors='coerce', utc=True)
-            # compute the difference
             duration_series = dep - arr
-            # convert to milliseconds
             duration_ms = duration_series.dt.total_seconds() * 1000
-            # calculate the mean
             ho_duration.append(duration_ms.mean())
-
-            # print("Duration ms (First 5):\n", duration_ms.head())
             num_ues += 1
 
-        # 4.1
-        plt.figure(figsize=(10, 5))
+        if len(ho_duration) < 2:
+            print(f"   Cluster {i+1}: not enough data, skipping.")
+            continue
 
-        # 1. Assign the plot to 'ax' so we can extract the data later
-        ax = sns.kdeplot(ho_duration, fill=True, color="orange")
-        sns.kdeplot(ho_duration, fill=False, color="orange", alpha=0, ax=ax)
+        # --- Calcolo KDE manuale con scipy ---
+        kde = gaussian_kde(ho_duration)
+        x_min, x_max = min(ho_duration), max(ho_duration)
+        margin = (x_max - x_min) * 0.2
+        kde_x = np.linspace(x_min - margin, x_max + margin, 500)
+        kde_y = kde(kde_x)
 
-        plt.title(f'Probability Density of Handover Duration per {num_ues} UEs ({period} Period)')
-        plt.xlabel('Duration [ms]')
+        # --- Plot curva e area ---
+        color = plt.cm.tab10(i)
+        ax.plot(kde_x, kde_y, color=color, linewidth=1.5)
+        ax.fill_between(kde_x, kde_y, alpha=0.2, color=color,
+                        label=f"Cluster {i+1}: {fname}")
 
-        os.makedirs(output_folder, exist_ok=True)
+        # --- Simbolo sul massimo ---
+        idx_max = np.argmax(kde_y)
+        x_peak, y_peak = kde_x[idx_max], kde_y[idx_max]
+        ax.plot(x_peak, y_peak, marker='*', color=color,
+                markersize=14, markeredgecolor='black',
+                zorder=5, label='_nolegend_')
+        ax.annotate(f'  {x_peak:.1f}', xy=(x_peak, y_peak),
+                    fontsize=8, color=color, va='bottom')
 
-        # save the original PNG visualization
-        file_name_png = "4.1-pdf_ho_duration.png"
-        file_path_png = os.path.join(output_folder, fname, file_name_png)
-        plt.savefig(file_path_png, dpi=300, bbox_inches='tight')
+        # --- Save plot values (invariato) ---
         if(save_plot_values):
-            # Extract the computed coordinates
-            kde_line = ax.lines[0]
-            x_data = kde_line.get_xdata()
-            y_data = kde_line.get_ydata()
+            os.makedirs(os.path.join(output_folder, fname), exist_ok=True)
 
-            # Save the CSV to the same output folder
-            file_name_csv = "4.1-pdf_ho_duration.csv"
-            file_path_csv = os.path.join(output_folder, fname, file_name_csv)
+            kde_df = pd.DataFrame({'Duration_ms': kde_x, 'Density': kde_y})
+            kde_df.to_csv(os.path.join(output_folder, fname, "4.1-pdf_ho_duration.csv"), index=False)
 
-            df = pd.DataFrame({'Duration_ms': x_data, 'Density': y_data})
-            df.to_csv(file_path_csv, index=False)
-        plt.close()
-
-        # 4.2
-        sorted_data = np.sort(ho_duration)
-        yvals = np.arange(len(sorted_data)) / float(len(sorted_data) - 1)
-        plt.figure(figsize=(10,5))
-        plt.plot(sorted_data, yvals, marker='.', linestyle='none')
-        plt.title(f'Cumulative Distribution of Handovers Duration per {num_ues} UEs ({period} Period)')
-        plt.xlabel('Duration [ms]')
-        plt.ylabel('CDF')
-        plt.grid(True)
-        os.makedirs(output_folder, exist_ok=True)
-        file_name = "4.2-cdf_ho_duration.png"
-        file_path = os.path.join(output_folder, fname, file_name)
-        plt.savefig(file_path, dpi=300, bbox_inches='tight')
-        if(save_plot_values):
+            sorted_data = np.sort(ho_duration)
+            yvals = np.arange(len(sorted_data)) / float(len(sorted_data) - 1)
             values_df = pd.DataFrame({'duration': sorted_data, 'probability': yvals})
-            csv_file_name = "4.2-cdf_ho_duration_values.csv"
-            csv_file_path = os.path.join(output_folder, fname, csv_file_name)
-            values_df.to_csv(csv_file_path, index=False)
-        plt.close()
+            values_df.to_csv(os.path.join(output_folder, fname, "4.2-cdf_ho_duration_values.csv"), index=False)
 
-    
+    # --- Finalize and Save the Combined Plot ---
+    ax.set_title(f'Probability Density of Handover Duration - All Clusters ({period} Period) - {num_ues_label} UEs')
+    ax.set_xlabel('Duration [ms]')
+    ax.set_ylabel('Probability Density')
+    ax.grid(axis='y', alpha=0.3)
+    ax.legend(title="Clusters", bbox_to_anchor=(1.05, 1), loc='upper left')
+
+    os.makedirs(output_folder, exist_ok=True)
+    combined_file_path = os.path.join(output_folder, "4-ho_duration_pdf.png")
+    fig.savefig(combined_file_path, dpi=300, bbox_inches='tight')
+    plt.show()
+    plt.close()
     print("   Completed!\n")
+  
 
 # ========================================================================================================= # 
 
 # 5. Average service time before the next handover event
 if(average_service_time):
-    print("5. Priting the average time before next handover ...")
+    print("5. Printing the average time before next handover ...")
+
+    fig, ax = plt.subplots(figsize=(12, 6))
+
     for i, (df_name, fname) in enumerate(zip(dfnames, fnames)):
         folder_path = Path("Cluster" + str(i+1) + " dataframes")
         service_time = []
@@ -329,91 +304,65 @@ if(average_service_time):
             df = pd.read_csv(file_path)
             df['arrival_time'] = pd.to_datetime(df['arrival_time'], errors='coerce')
             time_diffs_series = []
-            # take two consecutive rows per iteration
             for r1, r2 in zip(df.itertuples(), df.iloc[1:].itertuples()):
-                
-                # Ora r1 è la riga attuale, r2 è la successiva
                 t1, ev1 = r1.arrival_time, r1.event_type
                 t2, ev2 = r2.arrival_time, r2.event_type
-                
-
                 if ev1 != "out_serv" and ev2 != "out_serv":
                     duration = (t2 - t1).total_seconds()
                     time_diffs_series.append(duration)
-
             service_time.append(np.mean(time_diffs_series))
             num_ues += 1
 
-        ''' # Old version
-        for file_path in folder_path.glob('*.csv'):
-            df = pd.read_csv(file_path)
-            df['arrival_time'] = pd.to_datetime(df['arrival_time'], errors='coerce')
-            time_diffs_series = df['arrival_time'].diff().dt.total_seconds().dropna().astype(int).tolist()
-            service_time.append(np.mean(time_diffs_series))
-            num_ues += 1
-        '''
+        if len(service_time) < 2:
+            print(f"   Cluster {i+1}: not enough data, skipping.")
+            continue
 
-        # 5.1
-        plt.figure(figsize=(10, 5))
-        
-        # Assign the plot to 'ax'
-        ax = sns.kdeplot(service_time, fill=True, color="orange")
-        
-        plt.title(f'Probability Density of Service Time per {num_ues} UEs ({period} Period)')
-        plt.xlabel('Duration [s]')
-        os.makedirs(output_folder, exist_ok=True)
-        
-        # Save PNG
-        file_name = f"5.1-pdf_service_time.png"
-        file_path = os.path.join(output_folder, fname, file_name)
-        plt.savefig(file_path, dpi=300, bbox_inches='tight')
-        
-        if(save_plot_values):
-            # 2. Import SciPy and NumPy (make sure these are at the top of your script if you prefer)
-            from scipy.stats import gaussian_kde
-            import numpy as np
-            
-            # Initialize the exact same KDE math that Seaborn uses
-            kde = gaussian_kde(service_time)
-            
-            # Grab the exact X-axis boundaries that Seaborn calculated for the visual plot
-            x_min, x_max = ax.get_xlim()
-            
-            # Generate 200 smooth coordinates across that exact range
-            kde_x = np.linspace(x_min, x_max, 200)
-            kde_y = kde(kde_x)
-            
-            # Create the DataFrame
-            values_df = pd.DataFrame({
-                'Duration_s': kde_x, 
-                'Density': kde_y
-            })
-            
-            csv_file_name = f"5.1-pdf_service_time_values_{folder_path.name}.csv"
-            csv_file_path = os.path.join(output_folder, fname, csv_file_name)
-            values_df.to_csv(csv_file_path, index=False)
-        plt.close()
+        # --- Calcolo KDE manuale con scipy ---
+        kde = gaussian_kde(service_time)
+        x_min, x_max = min(service_time), max(service_time)
+        margin = (x_max - x_min) * 0.2
+        kde_x = np.linspace(x_min - margin, x_max + margin, 500)
+        kde_y = kde(kde_x)
 
-        # 5.2
-        sorted_data = np.sort(service_time)
-        yvals = np.arange(len(sorted_data)) / float(len(sorted_data) - 1)
-        plt.figure(figsize=(10,5))
-        plt.plot(sorted_data, yvals, marker='.', linestyle='none')
-        plt.title(f'Cumulative Distribution of Service Time per {num_ues} UEs ({period} Period)')
-        plt.xlabel('Duration [s]')
-        plt.ylabel('CDF')
-        plt.grid(True)
-        os.makedirs(output_folder, exist_ok=True)
-        file_name = "5.2-cdf_service_time.png"
-        file_path = os.path.join(output_folder, fname, file_name)
-        plt.savefig(file_path, dpi=300, bbox_inches='tight')
+        # --- Plot curva e area ---
+        color = plt.cm.tab10(i)
+        ax.plot(kde_x, kde_y, color=color, linewidth=1.5)
+        ax.fill_between(kde_x, kde_y, alpha=0.2, color=color,
+                        label=f"Cluster {i+1}: {fname}")
+
+        # --- Simbolo sul massimo ---
+        idx_max = np.argmax(kde_y)
+        x_peak, y_peak = kde_x[idx_max], kde_y[idx_max]
+        ax.plot(x_peak, y_peak, marker='*', color=color,
+                markersize=14, markeredgecolor='black',
+                zorder=5, label='_nolegend_')
+        ax.annotate(f'  {x_peak:.1f}', xy=(x_peak, y_peak),
+                    fontsize=8, color=color, va='bottom')
+
+        # --- Save plot values (invariato) ---
         if(save_plot_values):
+            os.makedirs(os.path.join(output_folder, fname), exist_ok=True)
+
+            kde_df = pd.DataFrame({'Duration_s': kde_x, 'Density': kde_y})
+            kde_df.to_csv(os.path.join(output_folder, fname, f"5.1-pdf_service_time_values_{folder_path.name}.csv"), index=False)
+
+            sorted_data = np.sort(service_time)
+            yvals = np.arange(len(sorted_data)) / float(len(sorted_data) - 1)
             values_df = pd.DataFrame({'service_time': sorted_data, 'probability': yvals})
-            csv_file_name = "5.2-cdf_service_time_values.csv"
-            csv_file_path = os.path.join(output_folder, fname, csv_file_name)
-            values_df.to_csv(csv_file_path, index=False)
-        plt.close()
-    
+            values_df.to_csv(os.path.join(output_folder, fname, "5.2-cdf_service_time_values.csv"), index=False)
+
+    # --- Finalize and Save the Combined Plot ---
+    ax.set_title(f'Probability Density of Service Time - All Clusters ({period} Period) - {num_ues_label} UEs')
+    ax.set_xlabel('Duration [s]')
+    ax.set_ylabel('Probability Density')
+    ax.grid(axis='y', alpha=0.3)
+    ax.legend(title="Clusters", bbox_to_anchor=(1.05, 1), loc='upper left')
+
+    os.makedirs(output_folder, exist_ok=True)
+    combined_file_path = os.path.join(output_folder, "5-service_time_pdf.png")
+    fig.savefig(combined_file_path, dpi=300, bbox_inches='tight')
+    plt.show()
+    plt.close()
     print("   Completed!\n")
 
 # ========================================================================================================= # 
@@ -451,7 +400,7 @@ if(ho_handled):
     ax2.set_ylabel('Probability Density', color='darkorange', fontweight='bold')
     ax2.tick_params(axis='y', labelcolor='darkorange')
 
-    plt.title(f'Out and In Handovers Distribution & Density per {num_sats} Serving Satellites ({period})')
+    plt.title(f'Out and In Handovers Distribution & Density per {num_sats} Serving Satellites ({period}) - {num_ues_label} UEs')
     os.makedirs(output_folder, exist_ok=True)
     combined_file = os.path.join(output_folder, "6.1-pdf_satellite_ho.png")
     plt.savefig(combined_file, dpi=300, bbox_inches='tight')
@@ -463,7 +412,7 @@ if(ho_handled):
     yvals = np.arange(len(sorted_data)) / float(len(sorted_data) - 1)
     plt.figure(figsize=(10,5))
     plt.plot(sorted_data, yvals, marker='.', linestyle='none')
-    plt.title(f'Cumulative Distribution of Out and In Handovers per {num_sats} serving satellites ({period} Period)')
+    plt.title(f'Cumulative Distribution of Out and In Handovers per {num_sats} serving satellites ({period} Period) - {num_ues_label} UEs')
     plt.xlabel('Number of Handovers')
     plt.ylabel('CDF')
     plt.grid(True)
@@ -725,46 +674,56 @@ if(ho_handled):
 #     print("   Completed!\n")
 
 
-# 7.3.2 Get the throughput considering the hadover outage time (v2)
+# 7.3.2 Get the throughput considering the handover outage time (v2)
 if(get_throuthput_ho_v2):
-    print("7.3.2 Plotting the average throughput considering the hangover outage time ...")
+    print("7.3.2 Plotting the average throughput considering the handover outage time ...")
+
+    fig, ax = plt.subplots(figsize=(12, 6))
+
     for i, (df_name, fname) in enumerate(zip(dfnames, fnames)):
         folder_path = Path("Cluster" + str(i+1) + " throughput")
         ues_thr = []
+
         for file_path in folder_path.glob('*.csv'):
-            suffix = "_thr_over_time.csv"
-            ue_id = file_path.name.replace(suffix, "") # ClusterN-UeXX
             df = pd.read_csv(file_path)
             thr = df['dl_thr'].tolist()
             ues_thr.append(thr)
-        avg_thr = np.mean(ues_thr, axis=0).tolist()
 
-        plt.figure(figsize=(10,5))
+        # --- Fix: truncate all series to the shortest length ---
+        min_len = min(len(t) for t in ues_thr)
+        ues_thr = [t[:min_len] for t in ues_thr]
+
+        avg_thr = np.mean(ues_thr, axis=0).tolist()
         time_vector = pd.date_range(start=simTimeStart, periods=len(avg_thr), freq='1s')
-        plt.plot(time_vector, avg_thr, label = f'{fname}', color=colors1[2])
+        color = plt.cm.tab10(i)
+
+        ax.plot(time_vector, avg_thr, label=f"Cluster {i+1}: {fname}", color=color)
         print(f"{fname} avg thr: ", np.mean(avg_thr))
-        plt.title('Average DL throughputs over time')
-        plt.xlabel('Time')
-        plt.ylabel('DL Throghput [Mbit/s]')
-        plt.grid(True)
-        plt.legend()
-        os.makedirs(output_folder, exist_ok=True)
-        file_name = "7.3.2-DL_throughput_ho.png"
-        file_path = os.path.join(output_folder, fname, file_name)
-        plt.savefig(file_path, dpi=300, bbox_inches='tight')
-        # Export to CSV
+
+        # --- Save plot values (invariato) ---
         if(save_plot_values):
+            os.makedirs(os.path.join(output_folder, fname), exist_ok=True)
             df_export = pd.DataFrame({
-                'Seconds': range(len(avg_thr)),  # Easy integer X-axis for LaTeX
-                'Timestamp': time_vector,          # Preserved for reference
+                'Seconds': range(len(avg_thr)),
+                'Timestamp': time_vector,
                 'Cluster_Thr': avg_thr
             })
-            
-            csv_file_name = "7.3.2-DL_throughput_ho_values.csv"
-            csv_file_path = os.path.join(output_folder, fname, csv_file_name)
+            csv_file_path = os.path.join(output_folder, fname, "7.3.2-DL_throughput_ho_values.csv")
             df_export.to_csv(csv_file_path, index=False)
-        plt.close()
 
+    # --- Finalize and Save the Combined Plot ---
+    ax.set_title('Average DL Throughputs over Time - All Clusters')
+    ax.set_xlabel('Time')
+    ax.set_ylabel('DL Throughput [Mbit/s]')
+    ax.grid(True)
+    ax.legend(title="Clusters", bbox_to_anchor=(1.05, 1), loc='upper left')
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%M:%S'))
+
+    os.makedirs(output_folder, exist_ok=True)
+    combined_file_path = os.path.join(output_folder, "7.3.2-DL_throughput_ho.png")
+    fig.savefig(combined_file_path, dpi=300, bbox_inches='tight')
+    plt.show()
+    plt.close()
     print("   Completed!\n")
 
 # ========================================================================================================= #
