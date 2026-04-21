@@ -3,23 +3,22 @@ import pandas as pd
 from tqdm import tqdm
 import argparse
 
-from cluster_v2 import Cluster
+from cluster import Cluster
 from ue import Ue
 from satellite import Satellite
 
 # initial configuration
-df_name_1 = "200km_sc9_padova_countdown.csv"
+df_name_1 = "250km_sc9_padova.csv"
 data_frame_1 = pd.read_csv(df_name_1)
-df_name_2 = "200km_sc9_munich_countdown.csv"
-data_frame_2 = pd.read_csv(df_name_2)
-df_name_3 = "200km_sc9_lucerna_countdown.csv"
-data_frame_3 = pd.read_csv(df_name_3)
+
 
 # satellites parameters
 simTime = timedelta(minutes=20)
-servers = 5
+servers = 1
 mu = 1/(30*1e-3) # default is 1/(30*1e-3)
-num_ues = 1000
+num_ues = 100
+num_beams = 25
+beam_size_km = 50
 
 ########### ho_condtion ###########
 # "SNR": if the SNR goes under a certain threshold then handover to a new satellite
@@ -41,10 +40,8 @@ servers = args.servers
 num_ues = args.num_ues
 
 # (name, position, num_ues, satellites_frame, threshold_snr, satellite servers, satellite mu)
-cluster1 = Cluster("Cluster1", (45.40996, 11.89261, 0), num_ues, data_frame_1, 7, servers, mu)
-cluster2 = Cluster("Cluster2", (48.14295, 11.57997, 0), num_ues, data_frame_2, 7, servers, mu)
-cluster3 = Cluster("Cluster3", (47.04240, 8.328983, 0), num_ues, data_frame_3, 7, servers, mu)
-clusters = [cluster1, cluster2, cluster3]
+cluster1 = Cluster("Cluster1", (45.40996, 11.89261, 0), num_ues, beam_size_km, num_beams, data_frame_1, 7, servers, mu)
+clusters = [cluster1]
 
 # (# year, month, day, hour, minute, second)
 time = datetime(2026, 2, 19, 0, 0, 0) 
@@ -68,8 +65,6 @@ with tqdm(total=total_iterations, desc="Simulating") as pbar:
     while time < end_sim_time:
 
         cluster1.monitor(time, service_sats, "SNR", "AVL_THR")
-        cluster2.monitor(time, service_sats, "VISIBILITY", "MAX_VISIBILITY")
-        cluster3.monitor(time, service_sats, "VISIBILITY", "RANDOM")
         
         # Display the current time on the right side of the progress bar instead of printing it
         pbar.set_postfix(time=time.strftime("%H:%M:%S"))

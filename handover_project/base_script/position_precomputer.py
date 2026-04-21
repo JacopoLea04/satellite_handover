@@ -35,16 +35,6 @@ def evaluate_time_instant(time_instant, cluster, tle_list, lat_ue, lon_ue, beam_
             lat_ue (float): Latitude of the user equipment (UE) in decimal degrees
             lon_ue (float): Longitude of the user equipment (UE) in decimal degrees
             beam_footprint_m (float): The diameter of the satellite beam footprint in meters
-            eirp_gt (float): EIRP of the ground terminal in dBW
-            gt_sat (float): G/T of the satellite in dB/K
-            eirp_sat (float): EIRP of the satellite in dBW
-            gt_ue (float): G/T of the user equipment in dB/K
-            frequency_dl (float): Downlink carrier frequency in GHz
-            frequency_ul (float): Uplink carrier frequency in GHz
-            bandwidth_dl (float): Downlink bandwidth in Hz
-            bandwidth_ul (float): Uplink bandwidth in Hz
-            sc6 (boolean): operate in 3GPP SC6 scenario - affects the channel model and transmission parameters
-            sc9 (boolean): operate in 3GPP SC9 scenario - affects the channel model and transmission parameters
         Returns:
             list of dicts: A list of dictionaries containing the computed parameters for each satellite within range in the following form:
                 {
@@ -53,13 +43,7 @@ def evaluate_time_instant(time_instant, cluster, tle_list, lat_ue, lon_ue, beam_
                     "sat_name": satellite_name,
                     "sat_lat": sat_lat,
                     "sat_lon": sat_lon,
-                    "sat_height": sat_height_m,
-                    "elevation": elevation_angle,
-                    "slant": slant_range,
-                    "snr_dl": dl_snr,
-                    "snr_ul": ul_snr,
-                    "thr_dl": dl_rate,
-                    "thr_ul": ul_rate
+                    "sat_height": sat_height_m
                 }
     """
 
@@ -78,7 +62,7 @@ def evaluate_time_instant(time_instant, cluster, tle_list, lat_ue, lon_ue, beam_
             lon_ue,
             sat_lat,
             sat_lon,
-            (beam_footprint_m * 5 ) * 3 - 2
+            beam_footprint_m * (5 * 3 - 2)
         )
 
         # if the satellite is within range, compute the channel parameters and save the results.
@@ -103,7 +87,7 @@ def main():
     # simulation parameters
     # epoch_time = np.datetime64('2025-06-08T00:00:00')   # epoch time for position computation [y, m, d, h, m, s]
     epoch_time = np.datetime64('2026-02-19T00:00:00')   # epoch time for position computation [y, m, d, h, m, s]
-    simulation_duration_seconds = 60                  # total simulation duration [s]
+    simulation_duration_seconds = 3600                  # total simulation duration [s]
     simulation_step_seconds = 1                         # time step for position computation [s]
     # lat_ue, lon_ue = 18.29817, -64.82818                # ue location [decimal degrees]
     # cluster locations:
@@ -112,7 +96,7 @@ def main():
     # lat_ue, lon_ue = 46.06250, 11.11497 # MUSE, Trento, IT
     # lat_ue, lon_ue = 48.14295, 11.57997 # hofgarten, moanco di baviera
     # lat_ue, lon_ue = 47.04240, 8.328983 #richard wagner museum, lucerna
-    filename = "200km_sc9_padova"
+    filename = "250km_sc9_padova"
     cluster_id = 1
     max_workers = None      # none to use all availabe cpu cores, or set to a specific number
     sc9 = True
