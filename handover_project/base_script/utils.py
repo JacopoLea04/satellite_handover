@@ -559,3 +559,42 @@ def sort_satellites_weighted(candidates):
     # Sort the list based on the calculated score in descending order
     candidates.sort(key=calculate_score, reverse=True)
     return candidates
+
+
+# =========================================================
+# CONVERSION TOOL LLA TO ECEF COORDINATES
+# =========================================================
+
+def lla_to_ecef(lat, lon, alt):
+    # seting the parameters for the WGS84
+    a = 6378137.0 # the semi-major axis in meters
+    f = 1/298.257223563 # flattening factor
+    e2 = 6.69437999014e-3 # square of the eccentricity
+    b = 6356752.3142 # the semi-minor axis in meters
+
+    n_lat = a / math.sqrt(1-e2*math.sin(math.radians(lat))**2)
+
+    x = (n_lat + alt) * math.cos(math.radians(lat) * math.cos(math.radians(lon)))
+    y = (n_lat + alt) * math.cos(math.radians(lat) * math.sin(math.radians(lon)))
+    z = ((1-e2)*n_lat+alt) * math.sin(math.radians(lat))
+
+    return x, y, z
+
+def compute_beam_centers(satellite_latitude, satellite_longitude, beam_size, cell_shape):
+    # returns a list contasining the positions of the centers of each beam in ECEF coordinates given the satelliteś latitude and longitude.
+    # cell_shape is a tuple (num_rows, num_columns) indicating the number of beams in the vertical and horizontal directions of the cell
+    beam_centers = []
+    beam_edges = []
+    satellite_x, satellite_y, _ = lla_to_ecef(satellite_latitude, satellite_longitude, 0)
+    first_beam_center = (satellite_x - (cell_shape[1] - 1) * beam_size / 2, satellite_y + (cell_shape[0] - 1) * beam_size / 2)
+    for i in range(cell_shape[0]):
+        for j in range(cell_shape[1]):
+            beam_center_x = first_beam_center[0] + j * beam_size
+            beam_center_y = first_beam_center[1] - i * beam_size
+            beam_centers.append((beam_center_x, beam_center_y))
+            x1 = beam_center_x - beam_size / 2
+            x2 = beam_center_x + beam_size / 2
+            y1 = beam_center_y - beam_size / 2
+            y2 = beam_center_y + beam_size / 2
+            beam_edges.append(((x1, y1), (x2, y2)))
+    return beam_centers, beam_edges
