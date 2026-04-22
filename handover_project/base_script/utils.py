@@ -647,3 +647,35 @@ def compute_cell_boundaries_lla(center_lat, center_lon, beam_size_m, beams_per_c
     se_lat, se_lon = direct_geodetic_problem(se_lat, se_lon, half_cell_size, south)
 
     return (nw_lat, nw_lon), (se_lat, se_lon)
+
+def check_clusters_visibility(cluster_centers_positions, cell_boundaries, cell_dim_beams):
+    """
+    checks which of the cluster centers are within the satellite cell boundaries defined by the north-west and
+    south-east corners latitude and longitude in decimal degrees.
+    Example of centers grid numbering for a 5x5 cluster:
+        0   1   2   3   4
+        5   6   7   8   9
+        10  11  12  13  14
+        15  16  17  18  19
+        20  21  22  23  24
+
+    Args:
+        cluster_centers_positions (list of tuples): list of (lat, lon, alt) coordinates of the cluster centers
+            in decimal degrees and meters.
+        cell_boundaries ((float, float), (float, float)): (nw_lat, nw_lon) coordinates of the north-west 
+            corner of the cell, (se_lat, se_lon) coordinates of the south-east corner of the cell,
+            all in decimal degrees.
+        cell_dim_beams (int): number of beams in the cell in one direction.
+            e.g., if cell_dim_beams = 3, the cell is 3 beams wide and 3 beams tall, totalling 9 beams.
+    Returns:
+        list of int: indices of the cluster centers that are within the cell boundaries.
+    """
+    nw_lat, nw_lon = cell_boundaries[0]
+    se_lat, se_lon = cell_boundaries[1]
+
+    visible_clusters_indices = []
+    for index, (lat, lon, alt) in enumerate(cluster_centers_positions):
+        if nw_lat >= lat >= se_lat and nw_lon <= lon <= se_lon:
+            visible_clusters_indices.append(index)
+
+    return visible_clusters_indices
