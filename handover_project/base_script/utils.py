@@ -668,14 +668,43 @@ def check_clusters_visibility(cluster_centers_positions, cell_boundaries, cell_d
         cell_dim_beams (int): number of beams in the cell in one direction.
             e.g., if cell_dim_beams = 3, the cell is 3 beams wide and 3 beams tall, totalling 9 beams.
     Returns:
-        list of int: indices of the cluster centers that are within the cell boundaries.
+        numpy.ndarray: matrix with indices of the cluster centers that are within the cell boundaries.
     """
     nw_lat, nw_lon = cell_boundaries[0]
     se_lat, se_lon = cell_boundaries[1]
-
+    
     visible_clusters_indices = []
+    cluster_row = []
+    rind = 0
     for index, (lat, lon, alt) in enumerate(cluster_centers_positions):
         if nw_lat >= lat >= se_lat and nw_lon <= lon <= se_lon:
-            visible_clusters_indices.append(index)
+            cluster_row.append(index)
+        rind += 1
+        if rind == cell_dim_beams:
+            visible_clusters_indices.append(cluster_row)
+            cluster_row = []
+            rind = 0
+    visible_clusters_indices_matrix = np.array(visible_clusters_indices)
+    return visible_clusters_indices_matrix
 
-    return visible_clusters_indices
+def get_coverage_beam_indices_matrix(visible_clusters_indices_matrix, cell_dim_beams):
+    """
+    given the matrix containing the indices of miniclusters that do have visibility with the satellite,
+    this function returns a matrix of the same size containing the indices of the satellite beams that cover
+    each of the mini clusters.
+    Args:
+        visible_clusters_indices_matrix (numpy.ndarray): matrix with indices of the cluster centers that are within the cell boundaries
+        cell_dim_beams (int): number of beams in the cell in one direction
+    Returns:
+        numpy.ndarray: matrix with indices of the satellite beams that cover each of the mini clusters. The indices are arranged
+            in the same way as the input matrix.
+    """
+    rows, cols = visible_clusters_indices_matrix.shape
+    satellite_beams_matrix = np.arange(0, cell_dim_beams * cell_dim_beams).reshape(cell_dim_beams, cell_dim_beams)
+    # print(satellite_beams_matrix)
+    satellite_beams_matrix = np.roll(satellite_beams_matrix, shift=(-rows, cols), axis=(0, 1))
+    # print(satellite_beams_matrix)
+    coverage_beams_matrix = np.take(satellite_beams_matrix, visible_clusters_indices_matrix)
+    # print(coverage_beams_matrix)
+    return coverage_beams_matrix
+
