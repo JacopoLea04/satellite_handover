@@ -20,8 +20,8 @@ class Cluster:
         self.sat_mu = mu
 
         # beams computation
-        positions = self.calculate_beams_grid(self.position[0], self.position[1], self.beam_size_km, self.num_beams)
-        self.list_beams = [Beam(self.name + "-Beam" + str(ii+1), positions[ii], int(num_ues/num_beams)) for ii in range(num_beams)]
+        self.positions = self.calculate_beams_grid(self.position[0], self.position[1], self.beam_size_km, self.num_beams)
+        self.list_beams = [Beam(self.name + "-Beam" + str(ii+1), self.positions[ii], int(num_ues/num_beams)) for ii in range(num_beams)]
 
 
     # in order to compute the position of the beams, we assume that they are arranged in a grid centered on the cluster position, 
