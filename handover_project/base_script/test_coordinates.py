@@ -1,5 +1,6 @@
 import utils
 import cluster
+import numpy as np
 
 beam_size_m = 50000 # 50 km beam
 cell_dim_beams = 5
@@ -29,7 +30,8 @@ for positions in test_cluster.positions:
 
 visible_cluster_indices = utils.check_clusters_visibility(test_cluster.positions, cell_boundaries, cell_dim_beams)
 print("indices of miniclusters that can see the satellite:")
-print(visible_cluster_indices)
+for row in visible_cluster_indices:
+    print(row)
 
 print("\n\nnew cluster moved east:")
 new_center_lat = center_lat
@@ -42,3 +44,10 @@ for positions in test_cluster_new.positions:
 visible_cluster_indices = utils.check_clusters_visibility(test_cluster_new.positions, cell_boundaries, cell_dim_beams)
 print("indices of miniclusters that can see the satellite:")
 print(visible_cluster_indices)
+
+# test the transposition to get the correct satellite side beam index
+# this is a different example, not related to the previous cluster, just to test the get_coverage_beam_indices_matrix function
+visible_clusters_indices_matrix = np.array([[0],[3],[6]])
+cell_dim_beams = 3
+print("coverage beam indices matrix:")
+print(utils.get_coverage_beam_indices_matrix(visible_clusters_indices_matrix, cell_dim_beams))
