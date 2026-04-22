@@ -580,21 +580,70 @@ def lla_to_ecef(lat, lon, alt):
 
     return x, y, z
 
-def compute_beam_centers(satellite_latitude, satellite_longitude, beam_size, cell_shape):
-    # returns a list contasining the positions of the centers of each beam in ECEF coordinates given the satelliteś latitude and longitude.
-    # cell_shape is a tuple (num_rows, num_columns) indicating the number of beams in the vertical and horizontal directions of the cell
-    beam_centers = []
-    beam_edges = []
-    satellite_x, satellite_y, _ = lla_to_ecef(satellite_latitude, satellite_longitude, 0)
-    first_beam_center = (satellite_x - (cell_shape[1] - 1) * beam_size / 2, satellite_y + (cell_shape[0] - 1) * beam_size / 2)
-    for i in range(cell_shape[0]):
-        for j in range(cell_shape[1]):
-            beam_center_x = first_beam_center[0] + j * beam_size
-            beam_center_y = first_beam_center[1] - i * beam_size
-            beam_centers.append((beam_center_x, beam_center_y))
-            x1 = beam_center_x - beam_size / 2
-            x2 = beam_center_x + beam_size / 2
-            y1 = beam_center_y - beam_size / 2
-            y2 = beam_center_y + beam_size / 2
-            beam_edges.append(((x1, y1), (x2, y2)))
-    return beam_centers, beam_edges
+# =========================================================
+# COMPUTE THE CELL GEOMETRY AND BEAM FOOTPRINT
+# =========================================================
+
+def direct_geodetic_problem(latitude, longitude, distance, bearing):
+    """
+    Computes the destination point coordinates given a starting point coordinates (latitude and longitude),
+    the distance to travel, and the initial bearing in degrees. The Earth is assumed to be a perfect sphere
+    (haversine formula).
+    
+    Args:
+        latitude (float): latitude of the starting point in decimal degrees
+        longitude (float): longitude of the starting point in decimal degrees
+        distance (float): distance to travel in meters
+        bearing (float): initial bearing in decimal degrees, clockwise from north (0 = north, 90 = east, ...)
+    Returns:
+        (float, float): latitude and longitude of the destination point in decimal degrees.
+    """
+    radius = 6371000 # Earth radius in meters
+
+    # converting to radians for computaitons
+    phi1 = math.radians(latitude)
+    lambda1 = math.radians(longitude)
+    theta = math.radians(bearing)
+    delta = distance / radius
+
+    # conversion formulae 
+    phi2 = math.asin(math.sin(phi1) * math.cos(delta) + 
+                     math.cos(phi1) * math.sin(delta) * math.cos(theta)) # destination latitude
+    
+    lambda2 = lambda1 + math.atan2(math.sin(theta) * math.sin(delta) * math.cos(phi1), 
+                                   math.cos(delta) - math.sin(phi1) * math.sin(phi2)) # destination longitude
+    
+    return math.degrees(phi2), math.degrees(lambda2) # returning to degrees
+
+
+def compute_cell_boundaries_lla(center_lat, center_lon, beam_size_m, beams_per_cell):
+    """
+    Computes the coordinates of the corners of a squared cell on the earth's surface centered on the 
+    given point (center_lat, center_lon). The cell dimensions are computed from the given beam size
+    in meters and the number of beams in the cell, assuming a square grid of beams.
+    Args:
+        center_lat (float): latitude of the cell centre in decimal degrees
+        center_lon (float): longitude of the cell centre in decimal degrees
+        beam_size_m (float): size of the beam footprint in meters
+        beams_per_cell (int): number of beams in the cell in one direction 
+            (e.g., if cell_width_in_beams=3, the cell is 3 beams wide and 3 beams tall)
+    Returns:
+        ((float, float), (float, float)): (nw_lat, nw_lon) coordinates of the north-west corner of the cell,
+            (se_lat, se_lon) coordinates of the south-east corner of the cell, all in decimal degrees.
+    """
+    # bearings
+    north = 0
+    east = 90
+    south = 180
+    west = 270
+
+    half_cell_size = (beam_size_m * beams_per_cell) / 2
+
+    # starting from the center of the cell, we move west and north to find the north-west corner
+    nw_lat, nw_lon = direct_geodetic_problem(center_lat, center_lon, half_cell_size, west)
+    nw_lat, nw_lon = direct_geodetic_problem(nw_lat, nw_lon, half_cell_size, north)
+    # starting from the center of the cell, we move east and south to find the south-east corner
+    se_lat, se_lon = direct_geodetic_problem(center_lat, center_lon, half_cell_size, east)
+    se_lat, se_lon = direct_geodetic_problem(se_lat, se_lon, half_cell_size, south)
+
+    return (nw_lat, nw_lon), (se_lat, se_lon)
