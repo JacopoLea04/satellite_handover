@@ -368,8 +368,37 @@ def decrement_connected_users_df(df, target_time, target_sat_name):
     return df
 
 
+def get_elevation_angle(frame, satellite_name, time):
+    """
+    Looks for the given satellite in the dataframe at the specified time and returns the elevation angle.
 
+    Args:
+        frame (pd.dataframe): the main dataframe containing satellites' orbits data
+        satellite_name (str): the name of the satellite for which to retrieve the elevation angle
+        time (datetime): the timestamp at which to retrieve the elevation angle.
 
+    Returns:
+        float: the elevation angle of the required satellite at the specified time in decimal degrees,
+            otherwise None if the satellite is not visible in the given time instant.
+    """
+    # Format the time object to match the DataFrame string format
+    if isinstance(time, datetime):
+        time_str = time.strftime("%Y-%m-%d %H:%M:%S")
+    else:
+        time_str = str(time)
+    # Create a mask to find the exact row
+    mask = (frame['time'].astype(str) == time_str) & (frame['sat_name'] == satellite_name)
+    # Apply the mask to filter the DataFrame
+    filtered_row = frame[mask]
+    
+    # Check if a match was found and return the value
+    if not filtered_row.empty:
+        elevation_angle = filtered_row['elevation'].iloc[0]
+        # print(float(elevation_angle))
+        return float(elevation_angle)
+    else:
+        # print(f"Warning: Could not find elevation data for {satellite_name} at {time_str}.")
+        return None
 
 def compute_dl_snr(frame, satellite_name, time):
     """
