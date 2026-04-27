@@ -24,6 +24,7 @@ num_ues = 1000
 ########### ho_condtion ###########
 # "SNR": if the SNR goes under a certain threshold then handover to a new satellite
 # "VISIBILITY": handover only when the current service satellite goes out of visibility
+# "ELEVATION" : handover when the elevation angle drops below a given threshold
 ########### sat_selection_condition ###########
 # "AVL_THR": the satellite with the highest available throughput is selected as target satellite
 # "SNR_THR": the satellite with hightest product thr*snr is selected as target satellite
