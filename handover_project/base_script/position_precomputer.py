@@ -23,7 +23,7 @@ def generate_time_vector(start_time, offset_seconds, step_seconds):
     """
     return start_time + np.arange(0, offset_seconds + step_seconds, step_seconds).astype('timedelta64[s]')
 
-def evaluate_time_instant(time_instant, cluster, tle_list, lat_ue, lon_ue, beam_footprint_m):
+def evaluate_time_instant(time_instant, cluster, tle_list, lat_ue, lon_ue, beam_footprint_m, cell_dim):
     """
     Given a time instant, a list of satellite TLEs, and some transmission parameters, this function 
     evaluates which satellites are within range of the UE and computes the relevant transmission parameters
@@ -62,7 +62,7 @@ def evaluate_time_instant(time_instant, cluster, tle_list, lat_ue, lon_ue, beam_
             lon_ue,
             sat_lat,
             sat_lon,
-            beam_footprint_m * (5 * 3 - 2)
+            beam_footprint_m * cell_dim
         )
 
         # if the satellite is within range, compute the channel parameters and save the results.
@@ -101,6 +101,7 @@ def main():
     max_workers = None      # none to use all availabe cpu cores, or set to a specific number
     sc9 = True
     sc6 = False
+    cell_dim = 5
 
  # ====================================================================================== #
 
@@ -126,7 +127,8 @@ def main():
         tle_list=tle_list,
         lat_ue=lat_ue,
         lon_ue=lon_ue,
-        beam_footprint_m=beam_footprint_m
+        beam_footprint_m=beam_footprint_m,
+        cell_dim=cell_dim
     )
 
     # generate the vector of time instants for which to compute the satellite positions

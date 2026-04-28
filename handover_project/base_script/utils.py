@@ -84,13 +84,6 @@ def get_satellites_at_time(df, target_time):
                 float(row['sat_lat']),
                 float(row['sat_lon']),
                 float(row['sat_height']),
-                float(row['elevation']),
-                float(row['slant']),
-                float(row['snr_dl']),
-                float(row['snr_ul']),
-                float(row['thr_dl']),
-                float(row['thr_ul']),
-                int(row['connected_users']),
                 float(row['occurrence_countdown'])
             )
             satellites.append(sat_info)
@@ -684,7 +677,9 @@ def check_clusters_visibility(cluster_centers_positions, cell_boundaries, cell_d
             visible_clusters_indices.append(cluster_row)
             cluster_row = []
             rind = 0
+    visible_clusters_indices = list(filter(None, visible_clusters_indices))
     visible_clusters_indices_matrix = np.array(visible_clusters_indices)
+
     return visible_clusters_indices_matrix
 
 def get_coverage_beam_indices_matrix(visible_clusters_indices_matrix, cell_dim_beams):
