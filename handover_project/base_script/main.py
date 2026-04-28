@@ -15,12 +15,13 @@ data_frame_1 = pd.read_csv(df_name_1)
 # satellites parameters
 simTime = timedelta(minutes=20)
 servers = 1
-mu = 1/(30*1e-3) # default is 1/(30*1e-3)
+mu_inter = 1/(30*1e-3) # default is 1/(30*1e-3)
+mu_intra = 1/(1*1e-3) # default is 1/(1*1e-3)
 num_ues = 100
 num_beams = 25
 beam_size_km = 50
 
-########### ho_condtion ###########
+########### ho_condition ###########
 # "SNR": if the SNR goes under a certain threshold then handover to a new satellite
 # "VISIBILITY": handover only when the current service satellite goes out of visibility
 ########### sat_selection_condition ###########
@@ -40,8 +41,8 @@ servers = args.servers
 num_ues = args.num_ues
 
 # (name, position, num_ues, satellites_frame, threshold_snr, satellite servers, satellite mu)
-cluster1 = Cluster("Cluster1", (45.40996, 11.89261, 0), num_ues, beam_size_km, num_beams, data_frame_1, 7, servers, mu)
-clusters = [cluster1]
+cluster1 = Cluster("Cluster1", (45.40996, 11.89261, 0), num_ues, beam_size_km, num_beams, data_frame_1, 7, servers, mu_inter, mu_intra)
+clusters = [cluster1] 
 
 # (# year, month, day, hour, minute, second)
 time = datetime(2026, 2, 19, 0, 0, 0) 
@@ -51,6 +52,7 @@ end_sim_time = time + simTime
 service_sats = {}
 for cluster in clusters:    
     cluster.initial_connection_phase(time, service_sats)
+
 
 # increment the time by 100 ms
 time += timedelta(seconds=1)
@@ -69,17 +71,22 @@ with tqdm(total=total_iterations, desc="Simulating") as pbar:
         # Display the current time on the right side of the progress bar instead of printing it
         pbar.set_postfix(time=time.strftime("%H:%M:%S"))
 
-        # save the instant throughpout for all the ues
+        # ========================== TO FIX =========================
+        """
+        # save the instant throughput for all the ues
         for cluster in clusters:
             cluster.save_instant_thr(time, service_sats)
-
+        """
+        
         # increment the time by 1 sec
         time += timedelta(seconds=1)
         
         # Manually advance the progress bar by 1 tick
         pbar.update(1)
 
+
 print("Simulation Complete!\n")
+
 print("Creating the folder with the ue dataframes ...")
 
 for name, sat in service_sats.items():
@@ -89,7 +96,8 @@ print("Folder created!\n")
 
 print("Creating the folder with the sat dataframes ...")
 for cluster in clusters:
-    for ue in cluster.list_ues:
-        ue.deactivate(cluster.name)
+    for mini_cluster in cluster.list_beams:
+        for ue in mini_cluster.list_ues:
+            ue.deactivate(cluster.name)
 
 print("Folder created!\n")
