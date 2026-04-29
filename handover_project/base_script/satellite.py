@@ -4,6 +4,7 @@ import heapq
 import random
 import pandas as pd
 import os
+from datetime import datetime
 
 class Satellite:
     def __init__(self, name, servers = 1, mu_inter = 0.03, mu_intra = 0.001, num_beams = 0, tle_data = None):
@@ -32,40 +33,22 @@ class Satellite:
             heapq.heapify(self.events_queue_intra)
             self.handover_tracker = []
 
-        def process_handover(self, arrival_time, ue, curr_beam_index, dest_satellite, dest_beam_index):
+        def process_handover_intra(self, arrival_time, ue, curr_beam_index, dest_satellite, dest_beam_index):
             """
-            Handles the handover process for a UE moving from current satellite to destination as */M/k queue.
-                Args:
-                    arrival_time (float): The time at which the handover request arrives.
-                    ue (Ue): The UE object that is being handed over.
-                    curr_beam_index (int): The index of the beam to which the UE is currently connected.
-                    dest_satellite (Satellite): The destination satellite to which the UE is being handed over.
-                    dest_beam_index (int): The index of the beam to which the UE will be connected in the destination satellite.
-                Returns:
-                    handover_info (dict): a dictionary containing the following information:
-                        - arrival_time: The time at which the handover request arrives.
-                        - event_type: The type of event (e.g., "out_ho" for handover out).
-                        - ue_id: The ID of the UE being handed over.
-                        - from_satellite: The name of the current satellite.
-                        - from_beam_index: The index of the beam to which the UE is currently connected.
-                        - dest_satellite: The name of the destination satellite.
-                        - dest_beam_index: The index of the beam to which the UE will be connected in the destination satellite.
-                        - start_time: The time at which the handover process starts.
-                        - departure_time: The time at which the handover process ends.
-                        - duration: The duration of the handover process.
+            Generate the handover_info struct, and specifically the queue delay, for intra-handover.
             """
-            # intra satellite handover 
-            if(dest_satellite.name == self.satellite.name):
-                event_type = "intra_ho"
-                # duration = random.expovariate(self.mu_intra)
-                duration = self.mu_intra # for testing purposes, we set a fixed duration of 30ms for the handover process
-                earliest_time = heapq.heappop(self.events_queue_intra)
-                arrival_time_rel = arrival_time.timestamp()
-                start_time = max(arrival_time_rel, earliest_time)
-                end_time = start_time + duration
-                heapq.heappush(self.events_queue_intra, end_time)
+            event_type = "intra_ho"
+            # duration = random.expovariate(self.mu_intra)
+            duration = self.mu_intra # for testing purposes, we set a fixed duration of 30ms for the handover process
+            earliest_time = heapq.heappop(self.events_queue_intra)
+            arrival_time_rel = arrival_time.timestamp()
+            start_time = max(arrival_time_rel, earliest_time)
+            end_time = start_time + duration
+            heapq.heappush(self.events_queue_intra, end_time)
+            start_time_dt = datetime.fromtimestamp(start_time)
+            end_time_dt = datetime.fromtimestamp(end_time)
 
-                handover_info = {
+            handover_info = {
                 "arrival_time": arrival_time,
                 "event_type": event_type,
                 "ue_id": ue.id,
@@ -73,24 +56,31 @@ class Satellite:
                 "from_beam_index": curr_beam_index,
                 "dest_satellite": dest_satellite.name,
                 "dest_beam_index": dest_beam_index,
-                "start_time": start_time,
-                "departure_time": end_time,
+                "start_time": start_time_dt,
+                "departure_time": end_time_dt,
                 "duration": duration,
-                "dest_number_ues": dest_satellite.connected_ues
-                }
-                self.handover_tracker.append(handover_info)
-            # inter satellite handover 
-            else:
-                event_type = "inter_ho"
-                # duration = random.expovariate(self.mu_inter)
-                duration = self.mu_inter # for testing purposes, we set a fixed duration of 30ms for the handover process
-                earliest_time = heapq.heappop(self.events_queue_inter)
-                arrival_time_rel = arrival_time.timestamp()
-                start_time = max(arrival_time_rel, earliest_time)
-                end_time = start_time + duration
-                heapq.heappush(self.events_queue_inter, end_time)
+                "dest_number_ues": dest_satellite.connected_ues.copy()
+            }
+                
+            return handover_info
 
-                handover_info = {
+        def process_handover_inter(self, arrival_time, ue, curr_beam_index, dest_satellite, dest_beam_index):
+            """
+            Generate the handover_info struct, and specifically the queue delay, for inter-handover.
+            """
+            
+            event_type = "inter_ho"
+            # duration = random.expovariate(self.mu_inter)
+            duration = self.mu_inter # for testing purposes, we set a fixed duration of 30ms for the handover process
+            earliest_time = heapq.heappop(self.events_queue_inter)
+            arrival_time_rel = arrival_time.timestamp()
+            start_time = max(arrival_time_rel, earliest_time)
+            end_time = start_time + duration
+            heapq.heappush(self.events_queue_inter, end_time)
+            start_time_dt = datetime.fromtimestamp(start_time)
+            end_time_dt = datetime.fromtimestamp(end_time)
+
+            handover_info = {
                 "arrival_time": arrival_time,
                 "event_type": event_type,
                 "ue_id": ue.id,
@@ -98,14 +88,11 @@ class Satellite:
                 "from_beam_index": curr_beam_index,
                 "dest_satellite": dest_satellite.name,
                 "dest_beam_index": dest_beam_index,
-                "start_time": start_time,
-                "departure_time": end_time,
+                "start_time": start_time_dt,
+                "departure_time": end_time_dt,
                 "duration": duration,
-                "dest_number_ues": dest_satellite.connected_ues
-                }
-                self.handover_tracker.append(handover_info)
-                dest_satellite.handover_manager.handover_tracker.append(handover_info)
-                dest_satellite.connect_ue(dest_beam_index)
+                "dest_number_ues": dest_satellite.connected_ues.copy()
+            }
 
             return handover_info
 
@@ -160,13 +147,8 @@ class Satellite:
 
 # ========================= TO FIX =========================
     
-    
+"""
     def get_position(self, time):
-        """
-        TODO: update this function to get the position of the satellite at the given time.
-
-        This function returns the current position of the satellite in ECI coordinates.
-        """
         ts = load.timescale()
         t = ts.utc(time.year, time.month, time.day, time.hour, time.minute, time.second)
 
@@ -182,9 +164,6 @@ class Satellite:
     
 
     def get_rate(self, frame, time):
-        """
-        TODO: update this function to get the rate of the satellite at the given time.
 
-        This function returns the current rate of the satellite in Mbps.
-        """
         return self.get_max_rate(frame, time) / self.load if self.load > 0 else 0
+"""

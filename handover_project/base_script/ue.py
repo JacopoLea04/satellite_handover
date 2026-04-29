@@ -58,41 +58,58 @@ class Ue:
         return self.connected_to, self.connected_to_beam
 
     
-    def handover(self, time, dest_sat, dest_beam_index):
+    def inter_handover(self, time, dest_sat, dest_beam_index):
         """
-        Handle the handover process for the UE.
-        Possible scenarios:
-        1) The UE is currently connected to a satellite and needs to handover to a new beam of the same satellite (intra-satellite handover).
-        2) The UE is currently connected to a satellite and needs to handover to a new beam of a different satellite (inter-satellite handover).
-        3) The UE is not currently connected to any satellite and needs to connect to a new beam of a satellite (initial connection or reconnection after being out of service).
-        4) The Ue is not currently connected to any satellite and no satellite is visible, so it remains out of service (out of service event).
-        Args:
-            time (datetime): The current time of the simulation.
-            dest_sat (Satellite): The satellite to which the UE is being handed over.
-            dest_beam_index (int): The index of the beam to which the UE is being handed over.
-        Returns:
-            handover_info (dict): a dictionary containing the following information:
-                - arrival_time: The time at which the handover request arrives.
-                - event_type: The type of event (e.g., "out_ho" for handover out).
-                - ue_id: The ID of the UE being handed over.
-                - from_satellite: The name of the current satellite.        
-                - from_satellite_beam: The index of the current beam.
-                - dest_satellite: The name of the destination satellite.
-                - dest_satellite_beam: The index of the destination beam.
-                - start_time: The time at which the handover process starts.
-                - departure_time: The time at which the handover process ends.
-                - duration: The duration of the handover process.
-                - dest_number_ues: The number of UEs connected to the destination satellite after the handover.
+        Handle the handover process for the UE, and append the handover_info structh and the general connection infos 
+        to all the nodes involved according to the specific case we fall in.
+        All the possible cases are:
+            1) From None to None (out_serv)
+            2) From Sat1 to None (lost_conn)
+            3) From None to Sat2 (rest_conn)
+            4) From Sat1 to Sat2 (inter_ho)
         """
         curr_sat, curr_beam_index = self.get_connection_info()
 
-        if curr_sat is not None: # disconnect the ue from the current satellite beam, and handover to the new one
-            curr_sat.disconnect_ue(curr_beam_index) 
-            handover_info = curr_sat.handover_manager.process_handover(time, self, curr_beam_index, dest_sat, dest_beam_index)
-        else: # the UE is not connected to any satellite, just connect it to the new one
+        # Case 1) and 2)
+        if(dest_sat is None):
+            event_type = "out_serv"
+            curr_sat_name = None
+
+            if(curr_sat is not None): # Case 2)
+                event_type = "lost_conn"
+                curr_sat_name = curr_sat.name
+
+            handover_info = {
+                    "arrival_time": time,
+                    "event_type": event_type,
+                    "ue_id": self.id,
+                    "from_satellite": curr_sat_name,
+                    "from_satellite_beam": curr_beam_index,
+                    "dest_satellite": None,
+                    "dest_satellite_beam": None,
+                    "start_time": time,
+                    "departure_time": 0,
+                    "duration": 1,
+                    "dest_number_ues": None
+                }
+
+            # update curr_sat infos
+            if(curr_sat is not None):
+                curr_sat.disconnect_ue(curr_beam_index)
+                curr_sat.handover_manager.handover_tracker.append(handover_info)
+
+            # update UE infos
+            self.disconnect()
+            self.handover_tracker.append(handover_info)
+
+            return 
+        
+        # Case 3) and 4)
+        else: 
+            if(curr_sat is None): # Case 3)
                 handover_info = {
                     "arrival_time": time,
-                    "event_type": "init_con",
+                    "event_type": "rest_conn",
                     "ue_id": self.id,
                     "from_satellite": None,
                     "from_satellite_beam": None,
@@ -101,16 +118,52 @@ class Ue:
                     "start_time": time,
                     "departure_time": 0,
                     "duration": 1,
-                    "dest_number_ues": dest_sat.connected_ues
+                    "dest_number_ues": dest_sat.connected_ues.copy()
                 }
+
+                # update destt_sat infos 
                 dest_sat.handover_manager.handover_tracker.append(handover_info)
+                dest_sat.connect_ue(dest_beam_index)
 
+                # update UE infos
+                self.handover_tracker.append(handover_info)
+                self.connect_to_satellite(dest_sat , dest_beam_index)
 
-        self.connect_to_satellite(dest_sat , dest_beam_index) # so as to update to which satellite this ue is connected
-        self.ho_duration = handover_info["duration"]
-        self.handover_tracker.append(handover_info)
+            else: # Case 4)
+                handover_info = curr_sat.handover_manager.process_handover_inter(time, self, curr_beam_index, dest_sat, dest_beam_index)
+
+                # update satellites infos
+                dest_sat.handover_manager.handover_tracker.append(handover_info)
+                dest_sat.connect_ue(dest_beam_index)
+                curr_sat.handover_manager.handover_tracker.append(handover_info)
+                curr_sat.disconnect_ue(curr_beam_index)
+
+                # update UE infos
+                self.handover_tracker.append(handover_info)
+                self.connect_to_satellite(dest_sat , dest_beam_index)
 
         return  
+
+    def intra_handover(self, time, dest_sat, dest_beam_index):
+        """
+        Handle the intra-handover process for the UE, append the handover_info struct to both ue and curr_sat
+        (please notice that the dest_sast is equal to the curr_sat), and update the counter of curr_sat and 
+        beam_index for the UE.
+        """
+
+        # update curr_sat and dest_sat infos and retrive the handover_info struct according to the queue process
+        curr_sat, curr_beam_index = self.get_connection_info()
+        handover_info = curr_sat.handover_manager.process_handover_intra(time, self, curr_beam_index, dest_sat, dest_beam_index)
+        curr_sat.handover_manager.handover_tracker.append(handover_info)
+        curr_sat.disconnect_ue(curr_beam_index)
+        dest_sat.connect_ue(dest_beam_index)
+
+        # update the ue infos
+        self.connect_to_satellite(dest_sat , dest_beam_index) # so as to update to which satellite this ue is connected
+        self.ho_duration = handover_info["duration"] # TODO why do we still need this? What was its purpose?
+        self.handover_tracker.append(handover_info)
+
+        return 
     
 
     def disconnect(self):

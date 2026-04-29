@@ -123,6 +123,14 @@ class Cluster:
             |_                                                                                                              _|
             
                 mini-cluster 1 (index 0)            mini-cluster 2 (index 1)           mini-cluster 3 (index 2)        ...
+
+
+            Handle the handover process for the UE.
+            Possible scenarios:
+            1) The UE is currently connected to a satellite and needs to handover to a new beam of the same satellite (intra-satellite handover).
+            2) The UE is currently connected to a satellite and needs to handover to a new beam of a different satellite (inter-satellite handover).
+            3) The UE is not currently connected to any satellite and needs to connect to a new beam of a satellite (inter-satellite handover).
+            4) The Ue is not currently connected to any satellite and no satellite is visible, so it remains out of service (inter-satellite handover)).
         """
         # round to the closest sec
         round_time = (time + timedelta(microseconds=500000)).replace(microsecond=0)
@@ -135,7 +143,10 @@ class Cluster:
             sat_cell_boundaries = utils.compute_cell_boundaries_lla(sat_lat, sat_lon, self.beam_size_km*1000, int(np.sqrt(self.num_beams)))
             visible_clusters_indices = utils.check_clusters_visibility(self.positions, sat_cell_boundaries, int(np.sqrt(self.num_beams)))
 
+            # case when the current examinated satellite doesn't illuminate any mini-cluster
+            # THIS SHOULD BE NOT POSSIBLE!!!
             if(visible_clusters_indices.size == 0):
+                print("Something wrong I can feel it ... ")
                 continue
 
             satellite_beam_indices = utils.get_coverage_beam_indices_matrix(visible_clusters_indices, int(np.sqrt(self.num_beams)))
@@ -155,6 +166,8 @@ class Cluster:
                 inter_handover = False
                 next_sat = None
 
+                # ============== Detect the type of required handover (if needed) ==============
+
                 # check if the current satellite is still visible from the mini-cluster of the UE
                 if curr_sat is None: # UE is not connected to any satellite
                     index = -1
@@ -164,55 +177,29 @@ class Cluster:
 
                 if (index == -1): # the current satellite is not visible anymore --> inter handover
                     inter_handover = True
-                    snr = None
+                    snr = None # TODO for future implementation
                 elif (curr_beam_index != visible_sats_for_each_minicluster[ue_index][index][1]): # the current satellite is still visible --> check if intra handover is needed
                     intra_handover = True
                 else: # the current satellite is still visible and the beam is the same --> check if handover is needed based on other conditions (e.g., SNR)
                     # TODO
                     print("No handover needed based on visibility, check other conditions (e.g., SNR)")
+
+                # ============== Performe the handover (if selected) ==============
                 
                 if(intra_handover): # handover to a new visible beam of the same satellite
                     next_sat = curr_sat
                     next_beam_index = visible_sats_for_each_minicluster[ue_index][index][1]
-                    ue.handover(time, next_sat, next_beam_index)
+                    ue.intra_handover(time, next_sat, next_beam_index)
+
                 elif(inter_handover): # handover to a new beam of a new satellite
 
+                    # possible satellites beams towards which the ue could handover
                     choices = len(visible_sats_for_each_minicluster[ue_index])
-                    if(choices == 0): # no visible satellites for this UE, so we consider that the UE is out of service (no handover possible)
-                        
-                        if(curr_sat is not None): # connection lost event for the UE
-                            curr_sat.disconnect_ue(curr_beam_index)
-                            handover_info = {
-                            "arrival_time": time,
-                            "event_type": "lost_conn",
-                            "ue_id": ue.id,
-                            "from_satellite": curr_sat.name,
-                            "from_beam_index": curr_beam_index,
-                            "dest_satellite": None,
-                            "dest_beam_index": None,
-                            "start_time": time,
-                            "departure_time": 0,
-                            "duration": 1.0,
-                            "dest_number_ues": 0
-                            }
-                            ue.handover_tracker.append(handover_info)
-                            curr_sat.handover_manager.handover_tracker.append(handover_info)
-                            ue.disconnect()
-                        else: # the UE is already out of service, so we just need to save the event in the UE handover tracker
-                            handover_info = {
-                                "arrival_time": time,
-                                "event_type": "out_serv",
-                                "ue_id": ue.id,
-                                "from_satellite": None,
-                                "from_beam_index": None,
-                                "dest_satellite": None,
-                                "dest_beam_index": None,
-                                "start_time": time,
-                                "departure_time": 0,
-                                "duration": 1.0,
-                                "dest_number_ues": 0
-                            }
-                            ue.handover_tracker.append(handover_info)
+                    # if no one, the ue goes out of service
+                    if(choices == 0):
+                        next_sat = None
+                        next_beam_index = None
+                    # if there is at least one, select a random one among them and handover
                     else:
                         # select a random satellite among the visible ones and handover to it
                         random_index = random.randint(0, choices-1)
@@ -222,25 +209,21 @@ class Cluster:
                         # is this satellite already configured?
                         selected_sat_name = next_sat[0]
                         if selected_sat_name not in service_sats:
-                            sat = Satellite(selected_sat_name, self.sat_servers, self.sat_mu_inter, self.sat_mu_intra, int(pow(self.num_beams, 2)))
+                            sat = Satellite(selected_sat_name, self.sat_servers, self.sat_mu_inter, self.sat_mu_intra, self.num_beams)
                             service_sats[selected_sat_name] = sat
-
                         next_sat = service_sats[selected_sat_name]
-                        ue.handover(time, next_sat, next_beam_index)
 
-                
+                    # handover to the selected sat (if no one, go out of service)
+                    ue.inter_handover(time, next_sat, next_beam_index)
 
 
+                    
    
 # ========================= TO FIX =========================
 
-
+"""
     def save_instant_thr(self, time, service_sats):
-        """
-            TODO: update this function
-            
-            This function computes the instant throughput for each UE based on the maximum throughput of the serving satellite.
-        """
+
         for ue in self.list_ues:
             # data collection
             serv_sat = ue.connected_to
@@ -273,3 +256,4 @@ class Cluster:
                         "ul_thr": temp_ul_throughput
                     }
             ue.thr_tracker.append(thr_info)
+"""

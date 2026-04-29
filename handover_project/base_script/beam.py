@@ -49,7 +49,7 @@ class Beam:
                     "start_time": time,
                     "departure_time": 0,
                     "duration": 0,
-                    "dest_number_ues": service_sats[selected_sat_name].connected_ues
+                    "dest_number_ues": service_sats[selected_sat_name].connected_ues.copy()
                 }
                 service_sats[selected_sat_name].handover_manager.handover_tracker.append(handover_info)
                 ue.handover_tracker.append(handover_info)
