@@ -18,7 +18,7 @@ visible_sats_over_time = False
 # 2. Evolution of N satellites SNR over time
 snr_over_time = False
 # 3. Average handover rate 
-average_handover_rate = False
+average_handover_rate = True
 # 4. Average handover duration
 average_handover_duration = False
 # 5. Average service time before the next handover event
@@ -30,23 +30,24 @@ ho_handled = False
 # 7.3 throughput considering HO outage time
 # get_throuthput_ho = False
 # 7.3.2 throughput considering HO outage time 
-get_throuthput_ho_v2 = True
+get_throuthput_ho_v2 = False
+get_thr_ho_single_ue = False
 # 8. Average number and duration of out of services
 out_of_service = False
 # 9. Number of ping-pong handovers
 ping_pong_handovers = False
 
-save_plot_values = False
+save_plot_values = True
 
 
 
 output_folder = "plots"
 # df_name = "75km_satellite_df.csv"
-df_padova = "200km_sc9_padova_countdown.csv"
-df_munich = "200km_sc9_munich_countdown.csv"
-df_lucerna = "200km_sc9_lucerna_countdown.csv"
-dfnames = [df_padova, df_munich, df_lucerna]
-fnames = ["padova", "munich", "lucerna"]
+df_padova = "2000km_padova_countdown.csv"
+# df_munich = "200km_sc9_munich_countdown.csv"
+# df_lucerna = "200km_sc9_lucerna_countdown.csv"
+dfnames = [df_padova]
+fnames = ["padova"]
 
 period = '20 min'
 num_ues_label = 1000
@@ -54,7 +55,7 @@ simTimeStart = datetime(2026, 2, 19, 0, 0, 0)
 simTimeEnd = datetime(2026, 2, 19, 0, 20, 0) 
 time_step = timedelta(seconds=1)
 N = 5 # to select only a subset of objects (it is used only from function #2 and #7)
-num_ues_to_plot = 2
+num_ues_to_plot = 3
 colors1 = ['skyblue', 'lightcoral', 'palegreen', 'mocassin', 'plum', 'tan', 'lightpink', 'lightgray', 'darkkhaki', 'paleturquoise']
 colors2 = ['blue', 'red', 'green', 'orange', 'purple', 'brown', 'pink', 'gray', 'olive', 'cyan']
 
@@ -191,8 +192,12 @@ if(average_handover_rate):
         ax.annotate(f'  {x_peak:.1f}', xy=(x_peak, y_peak),
                     fontsize=8, color=color, va='bottom')
 
-        if(save_plot_values):
+    if(save_plot_values):
             os.makedirs(os.path.join(output_folder, fname), exist_ok=True)
+            df_ho_count = pd.Series(ho_count).value_counts().reset_index()
+            df_ho_count.columns = ['num_of_handovers', 'count']
+            df_ho_count = df_ho_count.sort_values(by='num_of_handovers')
+            df_ho_count.to_csv('3.1-handover_counts.csv', index=False)
             kde_df = pd.DataFrame({'number_of_handovers': kde_x, 'density': kde_y})
             kde_df.to_csv(os.path.join(output_folder, fname, "3.1-handover_kde.csv"), index=False)
 
@@ -205,7 +210,7 @@ if(average_handover_rate):
     os.makedirs(output_folder, exist_ok=True)
     combined_file_path = os.path.join(output_folder, "3-handover_pdf.png")
     fig.savefig(combined_file_path, dpi=300, bbox_inches='tight')
-    plt.show()
+    # plt.show()
     plt.close()
     print("   Combined PDF Plot Completed!\n")
 
@@ -282,7 +287,7 @@ if(average_handover_duration):
     os.makedirs(output_folder, exist_ok=True)
     combined_file_path = os.path.join(output_folder, "4-ho_duration_pdf.png")
     fig.savefig(combined_file_path, dpi=300, bbox_inches='tight')
-    plt.show()
+    # plt.show()
     plt.close()
     print("   Completed!\n")
   
@@ -361,7 +366,7 @@ if(average_service_time):
     os.makedirs(output_folder, exist_ok=True)
     combined_file_path = os.path.join(output_folder, "5-service_time_pdf.png")
     fig.savefig(combined_file_path, dpi=300, bbox_inches='tight')
-    plt.show()
+    # plt.show()
     plt.close()
     print("   Completed!\n")
 
@@ -722,11 +727,72 @@ if(get_throuthput_ho_v2):
     os.makedirs(output_folder, exist_ok=True)
     combined_file_path = os.path.join(output_folder, "7.3.2-DL_throughput_ho.png")
     fig.savefig(combined_file_path, dpi=300, bbox_inches='tight')
-    plt.show()
+    # plt.show()
     plt.close()
     print("   Completed!\n")
 
 # ========================================================================================================= #
+
+# 7.3.3 Get the throughput over time of a single ue considering handover outage time
+if(get_thr_ho_single_ue):
+    print("7.3.3 Plotting the throughput over time of a single UE considering the handover outage time ...")
+
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    for i, (df_name, fname) in enumerate(zip(dfnames, fnames)):
+        folder_path = Path("Cluster" + str(i+1) + " throughput")
+        ues_thr = []
+        
+        j = 0
+        for file_path in folder_path.glob('*.csv'):
+            if(j >= num_ues_to_plot):
+                break
+            df = pd.read_csv(file_path)
+            thr = df['dl_thr'].tolist()
+            ues_thr.append(thr)
+            j = j + 1
+
+        # --- Fix: truncate all series to the shortest length ---
+        min_len = min(len(t) for t in ues_thr)
+        ues_thr = [t[:min_len] for t in ues_thr]
+
+        time_vector = pd.date_range(start=simTimeStart, periods=len(ues_thr[0]), freq='1s')
+        
+
+        for ue_index, ue_throughput in enumerate(ues_thr):
+            color = plt.cm.tab10(ue_index)
+            ax.plot(time_vector, ue_throughput, label=f"UE {ue_index+1}", color=color)
+            print(f"{fname} avg thr: ", np.mean(ue_throughput))
+
+        # --- Save plot values (invariato) ---
+        if(save_plot_values):
+            for ue_index, ue_throughput in enumerate(ues_thr):
+                os.makedirs(os.path.join(output_folder, fname), exist_ok=True)
+                df_export = pd.DataFrame({
+                    'Seconds': range(len(ues_thr[0])),
+                    'Timestamp': time_vector,
+                    'Cluster_Thr': ue_throughput
+                })
+                csv_file_path = os.path.join(output_folder, fname, f"7.3.3-DL_throughput_single_ue_{ue_index}.csv")
+                df_export.to_csv(csv_file_path, index=False)
+
+    # --- Finalize and Save the Combined Plot ---
+    ax.set_title('Single UE throughput over Time')
+    ax.set_xlabel('Time')
+    ax.set_ylabel('DL Throughput [Mbit/s]')
+    ax.grid(True)
+    ax.legend(title="UEs", bbox_to_anchor=(1.05, 1), loc='upper left')
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%M:%S'))
+
+    os.makedirs(output_folder, exist_ok=True)
+    combined_file_path = os.path.join(output_folder, "7.3.3-DL_throughput_single_ue.png")
+    fig.savefig(combined_file_path, dpi=300, bbox_inches='tight')
+    # plt.show()
+    plt.close()
+    print("   Completed!\n")
+
+
+
 
 # 8. Average number and duration of out of services
 if(out_of_service):
