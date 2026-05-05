@@ -8,55 +8,57 @@ from pathlib import Path
 from scipy.stats import gaussian_kde
 import seaborn as sns
 import numpy as np
+from pathlib import Path
 
 pd.options.mode.chained_assignment = None  # default='warn'
 
 # ========================================================================================================= # 
 
 # 1. How many satellites in visibility over time
-visible_sats_over_time = False
-# 2. Evolution of N satellites SNR over time
-snr_over_time = False
-# 3. Average handover rate 
-average_handover_rate = False
-# 4. Average handover duration
-average_handover_duration = False
-# 5. Average service time before the next handover event
-average_service_time = False
-# 6. Number of handover processes handled by each satellite
-ho_handled = False
-# 7. Average throughput
-# get_throughput = False
-# 7.3 throughput considering HO outage time
-# get_throuthput_ho = False
+visible_sats_over_time = True
+# 2. Average handover rate 
+average_handover_rate = True
+# 3. Average handover duration
+average_handover_duration = True
+# 4. Average service time before the next handover event
+average_service_time = True
+# 5. Number of handover processes handled by each satellite
+ho_handled = True
+# 6. Average number and duration of out of services
+out_of_service = True
+
+# ============ TO FIX ==============
 # 7.3.2 throughput considering HO outage time 
-get_throuthput_ho_v2 = True
-# 8. Average number and duration of out of services
-out_of_service = False
+get_throuthput_ho_v2 = False
 # 9. Number of ping-pong handovers
 ping_pong_handovers = False
-
+# 10. save the results into a csv
 save_plot_values = False
 
 
 
 output_folder = "plots"
-# df_name = "75km_satellite_df.csv"
-df_padova = "200km_sc9_padova_countdown.csv"
-df_munich = "200km_sc9_munich_countdown.csv"
-df_lucerna = "200km_sc9_lucerna_countdown.csv"
-dfnames = [df_padova, df_munich, df_lucerna]
-fnames = ["padova", "munich", "lucerna"]
-
 period = '20 min'
-num_ues_label = 1000
+num_ues_label = 100
 simTimeStart = datetime(2026, 2, 19, 0, 0, 0) 
 simTimeEnd = datetime(2026, 2, 19, 0, 20, 0) 
 time_step = timedelta(seconds=1)
-N = 5 # to select only a subset of objects (it is used only from function #2 and #7)
+N = 5 # to select only a subset of objects
 num_ues_to_plot = 2
+beam_size_km = 50
+num_beams = 25
+
+# df_name = "75km_satellite_df.csv"
+df_padova = "250km_sc9_padova.csv"
+padova_lat, padova_lon = 45.40996, 11.89261
+dfnames = [df_padova] 
+fnames = ["padova"]
+
+padova_positions = utils.calculate_beams_grid(padova_lat, padova_lon, beam_size_km, num_beams)
+
 colors1 = ['skyblue', 'lightcoral', 'palegreen', 'mocassin', 'plum', 'tan', 'lightpink', 'lightgray', 'darkkhaki', 'paleturquoise']
 colors2 = ['blue', 'red', 'green', 'orange', 'purple', 'brown', 'pink', 'gray', 'olive', 'cyan']
+
 
 
 # ========================================================================================================= # 
@@ -68,8 +70,8 @@ if(visible_sats_over_time):
     index = 0
     for df_name, fname in zip(dfnames, fnames):
         data_frame = pd.read_csv(df_name)
-        time = datetime(2026, 2, 19, 0, 0, 0)
-        end_sim_time = datetime(2026, 2, 19, 0, 20, 0)
+        time = simTimeStart
+        end_sim_time = simTimeEnd
 
         visible_sats = []
         timestamps = []
@@ -100,579 +102,616 @@ if(visible_sats_over_time):
             csv_file_name = "1-satellite_visibility_values.csv"
             csv_file_path = os.path.join(output_folder, fname, csv_file_name)
             values_df.to_csv(csv_file_path, index=False)
-
     plt.close()
-    print("   Completed!\n")
 
-# ========================================================================================================= # 
-
-# 2. Evolution of N satellites SNR over time
-if(snr_over_time):
-    print("2. Printing the SNR over time ...")
+    print("1.1 Printing the number of visible beams for each ue ...")
     for df_name, fname in zip(dfnames, fnames):
-        print("\texamining ", fname, " ...")
+        plt.figure(figsize=(10, 5))
+        index = 0
         data_frame = pd.read_csv(df_name)
-        time = datetime(2026, 2, 19, 0, 0, 0)
-        end_sim_time = datetime(2026, 2, 19, 0, 20, 0)
+        beams_names = ["Beam NO", "Beam Center", "Beam SE"]
+        visible_sat_beam_NO = []
+        visible_sat_beam_center = []
+        visible_sat_beam_SE = []
 
-        visible_satellites = utils.get_satellites_at_time(data_frame, time)
-        n_visible = min(N, len(visible_satellites))
-        visible_sats = visible_satellites[:n_visible]
-        for sat in visible_sats:
-            print("\t\tSAT ID", sat[0])
-            timestamps = []
-            snr = []
-            time = datetime(2026, 2, 19, 0, 0, 0) 
-            while time < end_sim_time:
-                dl_snr = utils.compute_dl_snr(data_frame, sat[0], time)
-                if(dl_snr is None):
-                    pass
-                    # print("DL SNR NONE for satellite", sat[0], "at time", time)
-                else:
-                    pass #dl_snr += np.random.normal(0, 0.5)  # add gaussian noise
-                snr.append(dl_snr)
-                timestamps.append(time)
-                time += timedelta(seconds=1)
-            lab = sat[0]
-            plt.plot(timestamps, snr, linestyle='-', label=lab)
 
-        plt.title('DL SNR over time')
-        plt.xlabel('Time (HH:MM:SS)')
-        plt.ylabel('DL SNR [dB]')
-        plt.ylim((0, 20))
-        plt.grid(True)
+        time = simTimeStart
+        end_sim_time = simTimeEnd
+
+        # compute the visibile beams for each minicluster
+        while time < end_sim_time:
+            visible_sats = utils.get_satellites_at_time(data_frame, time)
+            visible_sats_for_each_minicluster = [[] for _ in range(num_beams)]
+            for sat in visible_sats:
+                sat_lat, sat_lon = sat[1], sat[2]
+                sat_cell_boundaries = utils.compute_cell_boundaries_lla(sat_lat, sat_lon, beam_size_km*1000, int(np.sqrt(num_beams)))
+                visible_clusters_indices = utils.check_clusters_visibility(padova_positions, sat_cell_boundaries, int(np.sqrt(num_beams)))
+                if(len(visible_clusters_indices) == 0):
+                    continue
+                satellite_beam_indices = utils.get_coverage_beam_indices_matrix(visible_clusters_indices, int(np.sqrt(num_beams)))
+                
+                rows, cols = visible_clusters_indices.shape
+                for ii in range(rows):
+                    for jj in range(cols):
+                        idx_cluster = visible_clusters_indices[ii][jj]
+                        idx_sat_beam = satellite_beam_indices[ii][jj]
+                        visible_sats_for_each_minicluster[idx_cluster].append((sat, idx_sat_beam))
+
+            visible_sat_beam_NO.append(len(visible_sats_for_each_minicluster[0]))
+            visible_sat_beam_center.append(len(visible_sats_for_each_minicluster[int(num_beams/2)]))
+            visible_sat_beam_SE.append(len(visible_sats_for_each_minicluster[-1]))
+
+            time += timedelta(seconds=1)
+
+        total_seconds = int((simTimeEnd - simTimeStart).total_seconds())
+        timestamps = [simTimeStart + timedelta(seconds=i) for i in range(total_seconds + 1)][:-1]
+
+        plt.plot(timestamps, visible_sat_beam_NO, color=colors1[index], linestyle='-', label = beams_names[index])
+        index += 1
+        plt.plot(timestamps, visible_sat_beam_center, color=colors1[index], linestyle='-', label = beams_names[index])
+        index += 1
+        plt.plot(timestamps, visible_sat_beam_SE, color=colors1[index], linestyle='-', label = beams_names[index])
+        index += 1
+            
+        plt.title('Visible Beams Over Time')
         plt.legend()
+        plt.xlabel('Time (HH:MM:SS)')
+        plt.ylabel('Number of Visible Beams')
+        plt.grid(True)
         plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
         plt.xticks(rotation=45)
         plt.tight_layout()
         os.makedirs(output_folder, exist_ok=True)
-        file_name = "2-dl_snr.png"
-        file_path = os.path.join(output_folder, fname, file_name)
-        os.makedirs(os.path.join(output_folder, fname), exist_ok=True)
+        file_name = f"1.1-beam_visibility_{fname}.png"
+        file_path = os.path.join(output_folder, file_name)
+        #os.makedirs(os.path.join(output_folder, fname), exist_ok=True)
         plt.savefig(file_path, dpi=300, bbox_inches='tight')
+
+        if(save_plot_values):
+            values_df = pd.DataFrame({'timestamp': timestamps, 'elapsed_seconds': np.arange(len(timestamps)), 'visible_satellites': visible_sats})
+            csv_file_name = "1-satellite_visibility_values.csv"
+            csv_file_path = os.path.join(output_folder, fname, csv_file_name)
+            values_df.to_csv(csv_file_path, index=False)
         plt.close()
-    print("\tCompleted!\n")
+
+    print("   Completed!\n")
 
 # ========================================================================================================= # 
 
-# 3. Average handover rate
+
+# 2. Average handover rate
 if(average_handover_rate):
-    print("3. Printing the average handover rate ...")
+
+    print("2. Printing the average handover rate ...")
 
     fig, ax = plt.subplots(figsize=(12, 6))
+
     for i, (df_name, fname) in enumerate(zip(dfnames, fnames)):
         folder_path = Path("Cluster" + str(i+1) + " dataframes")
-        ho_count = []
+        intra_ho_count = []
+        inter_ho_count = []
         
         for file_path in folder_path.glob('*.csv'):
             df = pd.read_csv(file_path)
-            count = len(df[df['event_type'] == 'out_ho'])
-            ho_count.append(count)
+            count_intra = len(df[df['event_type'] == 'intra_ho'])
+            count_inter = len(df[df['event_type'] == 'inter_ho'])
+            intra_ho_count.append(count_intra)
+            inter_ho_count.append(count_inter)
 
-        if len(ho_count) < 2:
-            print(f"   Cluster {i+1}: not enough data, skipping.")
-            continue
-
-        kde = gaussian_kde(ho_count)
-        x_min, x_max = min(ho_count), max(ho_count)
-        margin = (x_max - x_min) * 0.2
-        kde_x = np.linspace(x_min - margin, x_max + margin, 500)
-        kde_y = kde(kde_x)
-
+        # Base color for this cluster
         color = plt.cm.tab10(i)
-        ax.plot(kde_x, kde_y, color=color, linewidth=1.5)
-        ax.fill_between(kde_x, kde_y, alpha=0.2, color=color,
-                        label=f"Cluster {i+1}: {fname}")
-        idx_max = np.argmax(kde_y)
-        x_peak, y_peak = kde_x[idx_max], kde_y[idx_max]
-        ax.plot(x_peak, y_peak, marker='*', color=color,
-                markersize=14, markeredgecolor='black',
-                zorder=5, label='_nolegend_')
-        ax.annotate(f'  {x_peak:.1f}', xy=(x_peak, y_peak),
-                    fontsize=8, color=color, va='bottom')
 
-        if(save_plot_values):
+        # Dictionary to hold data for CSV saving later
+        csv_data = {}
+        
+        # Check for enough data and variance to do a KDE
+        if len(intra_ho_count) > 1 and min(intra_ho_count) != max(intra_ho_count):
+            kde_intra = gaussian_kde(intra_ho_count)
+            x_min_intra, x_max_intra = min(intra_ho_count), max(intra_ho_count)
+            margin_intra = (x_max_intra - x_min_intra) * 0.2
+            kde_x_intra = np.linspace(x_min_intra - margin_intra, x_max_intra + margin_intra, 500)
+            kde_y_intra = kde_intra(kde_x_intra)
+
+            # Plot solid line for Intra
+            ax.plot(kde_x_intra, kde_y_intra, color=color, linestyle='-', linewidth=1.5)
+            ax.fill_between(kde_x_intra, kde_y_intra, alpha=0.2, color=color,
+                            label=f"Cluster {i+1}: {fname}, intra")
+            
+            idx_max = np.argmax(kde_y_intra)
+            x_peak, y_peak = kde_x_intra[idx_max], kde_y_intra[idx_max]
+            ax.plot(x_peak, y_peak, marker='*', color=color, markersize=14, markeredgecolor='black', zorder=5)
+            ax.annotate(f'  {x_peak:.1f}', xy=(x_peak, y_peak), fontsize=8, color=color, va='bottom')
+
+            # Store for CSV
+            csv_data['intra_ho_x'] = kde_x_intra
+            csv_data['intra_ho_density'] = kde_y_intra
+        else:
+            print(f"Skipping KDE for Cluster {i+1} Intra HO due to lack of variance.")
+
+        if len(inter_ho_count) > 1 and min(inter_ho_count) != max(inter_ho_count):
+            kde_inter = gaussian_kde(inter_ho_count)
+            x_min_inter, x_max_inter = min(inter_ho_count), max(inter_ho_count)
+            margin_inter = (x_max_inter - x_min_inter) * 0.2
+            kde_x_inter = np.linspace(x_min_inter - margin_inter, x_max_inter + margin_inter, 500)
+            kde_y_inter = kde_inter(kde_x_inter)
+
+            # Plot dashed line for Inter to distinguish it
+            ax.plot(kde_x_inter, kde_y_inter, color=color, linestyle='--', linewidth=1.5)
+            ax.fill_between(kde_x_inter, kde_y_inter, alpha=0.1, color=color, # Lighter alpha
+                            label=f"Cluster {i+1}: {fname}, inter")
+            
+            idx_max = np.argmax(kde_y_inter)
+            x_peak, y_peak = kde_x_inter[idx_max], kde_y_inter[idx_max]
+            ax.plot(x_peak, y_peak, marker='o', color=color, markersize=8, markeredgecolor='black', zorder=5)
+            ax.annotate(f'  {x_peak:.1f}', xy=(x_peak, y_peak), fontsize=8, color=color, va='bottom')
+
+            # Store for CSV
+            csv_data['inter_ho_x'] = kde_x_inter
+            csv_data['inter_ho_density'] = kde_y_inter
+        else:
+            print(f"Skipping KDE for Cluster {i+1} Inter HO due to lack of variance.")
+
+        # --- SAVE PLOT VALUES ---
+        # We now save both intra and inter curves if they exist
+        if save_plot_values and csv_data:
             os.makedirs(os.path.join(output_folder, fname), exist_ok=True)
-            kde_df = pd.DataFrame({'number_of_handovers': kde_x, 'density': kde_y})
-            kde_df.to_csv(os.path.join(output_folder, fname, "3.1-handover_kde.csv"), index=False)
+            kde_df = pd.DataFrame(dict([(k, pd.Series(v)) for k, v in csv_data.items()])) 
+            kde_df.to_csv(os.path.join(output_folder, fname, "2-handover.csv"), index=False)
 
     ax.set_title(f'Probability Density of Handovers - All Clusters ({period} Period) - {num_ues_label} UEs')
     ax.set_xlabel('Number of Handovers')
     ax.set_ylabel('Probability Density')
     ax.grid(axis='y', alpha=0.3)
     ax.legend(title="Clusters", bbox_to_anchor=(1.05, 1), loc='upper left')
-    
+
     os.makedirs(output_folder, exist_ok=True)
-    combined_file_path = os.path.join(output_folder, "3-handover_pdf.png")
+    combined_file_path = os.path.join(output_folder, "2-handover_pdf.png")
     fig.savefig(combined_file_path, dpi=300, bbox_inches='tight')
-    plt.show()
-    plt.close()
-    print("   Combined PDF Plot Completed!\n")
+    print("   Completed!\n")
 
         
 # ========================================================================================================= # 
 
-# 4. Average handover duration
+# 3. Average handover duration
 if(average_handover_duration):
-    print("4. Printing the average handover duration ...")
+    print("3. Printing the average handover duration ...")
 
     fig, ax = plt.subplots(figsize=(12, 6))
 
     for i, (df_name, fname) in enumerate(zip(dfnames, fnames)):
         folder_path = Path("Cluster" + str(i+1) + " dataframes")
-        ho_duration = []
-        num_ues = 0
-
+        intra_ho_duration = []
+        inter_ho_duration = []
+        
         for file_path in folder_path.glob('*.csv'):
             df = pd.read_csv(file_path)
-            df = df[df['event_type'] == 'out_ho']
-            arr_naive = pd.to_datetime(df['arrival_time'], errors='coerce')
-            arr = arr_naive.dt.tz_localize('Europe/Berlin').dt.tz_convert('UTC')
-            dep = pd.to_datetime(df['departure_time'], unit='s', errors='coerce', utc=True)
-            duration_series = dep - arr
-            duration_ms = duration_series.dt.total_seconds() * 1000
-            ho_duration.append(duration_ms.mean())
-            num_ues += 1
 
-        if len(ho_duration) < 2:
-            print(f"   Cluster {i+1}: not enough data, skipping.")
-            continue
+            df_1 = df[df['event_type'] == 'intra_ho']
+            df_2 = df[df['event_type'] == 'inter_ho']
 
-        # --- Calcolo KDE manuale con scipy ---
-        kde = gaussian_kde(ho_duration)
-        x_min, x_max = min(ho_duration), max(ho_duration)
-        margin = (x_max - x_min) * 0.2
-        kde_x = np.linspace(x_min - margin, x_max + margin, 500)
-        kde_y = kde(kde_x)
+            arr_naive_1 = pd.to_datetime(df_1['arrival_time'], errors='coerce')
+            arr_naive_2 = pd.to_datetime(df_2['arrival_time'], errors='coerce')
+            arr_1 = pd.to_datetime(df_1['arrival_time'], errors='coerce', utc=True)
+            arr_2 = pd.to_datetime(df_2['arrival_time'], errors='coerce', utc=True)
+            dep_1 = pd.to_datetime(df_1['departure_time'], errors='coerce', utc=True)
+            dep_2 = pd.to_datetime(df_2['departure_time'], errors='coerce', utc=True)
+            duration_series_1 = dep_1 - arr_1
+            duration_series_2 = dep_2 - arr_2
+            duration_ms_1 = duration_series_1.dt.total_seconds() * 1000
+            duration_ms_2 = duration_series_2.dt.total_seconds() * 1000
+            mean_1 = duration_ms_1.mean()
+            mean_2 = duration_ms_2.mean()
+            
+            if pd.notna(mean_1):
+                intra_ho_duration.append(mean_1)
+            if pd.notna(mean_2):
+                inter_ho_duration.append(mean_2)
 
-        # --- Plot curva e area ---
+        # Base color for this cluster
         color = plt.cm.tab10(i)
-        ax.plot(kde_x, kde_y, color=color, linewidth=1.5)
-        ax.fill_between(kde_x, kde_y, alpha=0.2, color=color,
-                        label=f"Cluster {i+1}: {fname}")
 
-        # --- Simbolo sul massimo ---
-        idx_max = np.argmax(kde_y)
-        x_peak, y_peak = kde_x[idx_max], kde_y[idx_max]
-        ax.plot(x_peak, y_peak, marker='*', color=color,
-                markersize=14, markeredgecolor='black',
-                zorder=5, label='_nolegend_')
-        ax.annotate(f'  {x_peak:.1f}', xy=(x_peak, y_peak),
-                    fontsize=8, color=color, va='bottom')
+        # Dictionary to hold data for CSV saving later
+        csv_data = {}
+        
+        # Check for enough data and variance to do a KDE
+        if len(intra_ho_duration) > 1 and min(intra_ho_duration) != max(intra_ho_duration):
+            kde_intra = gaussian_kde(intra_ho_duration)
+            x_min_intra, x_max_intra = min(intra_ho_duration), max(intra_ho_duration)
+            margin_intra = (x_max_intra - x_min_intra) * 0.2
+            kde_x_intra = np.linspace(x_min_intra - margin_intra, x_max_intra + margin_intra, 500)
+            kde_y_intra = kde_intra(kde_x_intra)
 
-        # --- Save plot values (invariato) ---
-        if(save_plot_values):
+            # Plot solid line for Intra
+            ax.plot(kde_x_intra, kde_y_intra, color=color, linestyle='-', linewidth=1.5)
+            ax.fill_between(kde_x_intra, kde_y_intra, alpha=0.2, color=color,
+                            label=f"Cluster {i+1}: {fname}, intra")
+            
+            idx_max = np.argmax(kde_y_intra)
+            x_peak, y_peak = kde_x_intra[idx_max], kde_y_intra[idx_max]
+            ax.plot(x_peak, y_peak, marker='*', color=color, markersize=14, markeredgecolor='black', zorder=5)
+            ax.annotate(f'  {x_peak:.1f}', xy=(x_peak, y_peak), fontsize=8, color=color, va='bottom')
+
+            # Store for CSV
+            csv_data['intra_ho_x'] = kde_x_intra
+            csv_data['intra_ho_density'] = kde_y_intra
+        else:
+            print(f"Skipping KDE for Cluster {i+1} Intra HO due to lack of variance.")
+
+        if len(inter_ho_duration) > 1 and min(inter_ho_duration) != max(inter_ho_duration):
+            kde_inter = gaussian_kde(inter_ho_duration)
+            x_min_inter, x_max_inter = min(inter_ho_duration), max(inter_ho_duration)
+            margin_inter = (x_max_inter - x_min_inter) * 0.2
+            kde_x_inter = np.linspace(x_min_inter - margin_inter, x_max_inter + margin_inter, 500)
+            kde_y_inter = kde_inter(kde_x_inter)
+
+            # Plot dashed line for Inter to distinguish it
+            ax.plot(kde_x_inter, kde_y_inter, color=color, linestyle='--', linewidth=1.5)
+            ax.fill_between(kde_x_inter, kde_y_inter, alpha=0.1, color=color, # Lighter alpha
+                            label=f"Cluster {i+1}: {fname}, inter")
+            
+            idx_max = np.argmax(kde_y_inter)
+            x_peak, y_peak = kde_x_inter[idx_max], kde_y_inter[idx_max]
+            ax.plot(x_peak, y_peak, marker='o', color=color, markersize=8, markeredgecolor='black', zorder=5)
+            ax.annotate(f'  {x_peak:.1f}', xy=(x_peak, y_peak), fontsize=8, color=color, va='bottom')
+
+            # Store for CSV
+            csv_data['inter_ho_x'] = kde_x_inter
+            csv_data['inter_ho_density'] = kde_y_inter
+        else:
+            print(f"Skipping KDE for Cluster {i+1} Inter HO due to lack of variance.")
+
+        # --- SAVE PLOT VALUES ---
+        # We now save both intra and inter curves if they exist
+        if save_plot_values and csv_data:
             os.makedirs(os.path.join(output_folder, fname), exist_ok=True)
+            kde_df = pd.DataFrame(dict([(k, pd.Series(v)) for k, v in csv_data.items()])) 
+            kde_df.to_csv(os.path.join(output_folder, fname, "3-handover_duration.csv"), index=False)
 
-            kde_df = pd.DataFrame({'Duration_ms': kde_x, 'Density': kde_y})
-            kde_df.to_csv(os.path.join(output_folder, fname, "4.1-pdf_ho_duration.csv"), index=False)
-
-            sorted_data = np.sort(ho_duration)
-            yvals = np.arange(len(sorted_data)) / float(len(sorted_data) - 1)
-            values_df = pd.DataFrame({'duration': sorted_data, 'probability': yvals})
-            values_df.to_csv(os.path.join(output_folder, fname, "4.2-cdf_ho_duration_values.csv"), index=False)
-
-    # --- Finalize and Save the Combined Plot ---
-    ax.set_title(f'Probability Density of Handover Duration - All Clusters ({period} Period) - {num_ues_label} UEs')
+    ax.set_title(f'Probability Density of Handovers Duration - All Clusters ({period} Period) - {num_ues_label} UEs')
     ax.set_xlabel('Duration [ms]')
     ax.set_ylabel('Probability Density')
     ax.grid(axis='y', alpha=0.3)
     ax.legend(title="Clusters", bbox_to_anchor=(1.05, 1), loc='upper left')
 
     os.makedirs(output_folder, exist_ok=True)
-    combined_file_path = os.path.join(output_folder, "4-ho_duration_pdf.png")
+    combined_file_path = os.path.join(output_folder, "3-handover_duration.png")
     fig.savefig(combined_file_path, dpi=300, bbox_inches='tight')
-    plt.show()
-    plt.close()
     print("   Completed!\n")
-  
+
 
 # ========================================================================================================= # 
 
-# 5. Average service time before the next handover event
+# 4. Average service time before the next handover event
 if(average_service_time):
-    print("5. Printing the average time before next handover ...")
+    print("4. Printing the average time before next handover ...")
 
     fig, ax = plt.subplots(figsize=(12, 6))
 
     for i, (df_name, fname) in enumerate(zip(dfnames, fnames)):
         folder_path = Path("Cluster" + str(i+1) + " dataframes")
-        service_time = []
-        num_ues = 0
-
+        
+        # Master lists for this specific cluster
+        cluster_beam_durations = []
+        cluster_sat_durations = []
+        
         for file_path in folder_path.glob('*.csv'):
             df = pd.read_csv(file_path)
-            df['arrival_time'] = pd.to_datetime(df['arrival_time'], errors='coerce')
-            time_diffs_series = []
-            for r1, r2 in zip(df.itertuples(), df.iloc[1:].itertuples()):
-                t1, ev1 = r1.arrival_time, r1.event_type
-                t2, ev2 = r2.arrival_time, r2.event_type
-                if ev1 != "out_serv" and ev2 != "out_serv":
-                    duration = (t2 - t1).total_seconds()
-                    time_diffs_series.append(duration)
-            service_time.append(np.mean(time_diffs_series))
-            num_ues += 1
+            if df.empty:
+                continue
+            
+            # parse time safely and ensure it is chronological
+            df['arrival_time'] = pd.to_datetime(df['arrival_time'], errors='coerce', utc=True)
+            df = df.sort_values('arrival_time')
+            
+            # set up our state trackers for this specific UE
+            curr_sat, curr_beam = None, None
+            sat_start_time, beam_start_time = None, None
+            
+            for row in df.itertuples():
+                t = row.arrival_time
+                
+                # safely extract destinations (handling strings of 'None' or NaNs from CSVs)
+                dest_sat = row.dest_satellite if pd.notna(row.dest_satellite) and str(row.dest_satellite) != 'None' else None
+                dest_beam = row.dest_beam_index if pd.notna(row.dest_beam_index) and str(row.dest_beam_index) != 'None' else None
 
-        if len(service_time) < 2:
-            print(f"   Cluster {i+1}: not enough data, skipping.")
-            continue
+                # case A: the UE disconnected entirely (out_serv, lost_conn)
+                if dest_sat is None:
+                    if curr_sat is not None:
+                        cluster_sat_durations.append((t - sat_start_time).total_seconds())
+                        curr_sat = None # Reset state
+                    if curr_beam is not None:
+                        cluster_beam_durations.append((t - beam_start_time).total_seconds())
+                        curr_beam = None # Reset state
+                        
+                # case B: the UE is connected to a satellite
+                else:
+                    # did the satellite change? (initial connection or inter_ho)
+                    if curr_sat != dest_sat:
+                        # Close out the old tracking periods if they exist
+                        if curr_sat is not None:
+                            cluster_sat_durations.append((t - sat_start_time).total_seconds())
+                        if curr_beam is not None:
+                            cluster_beam_durations.append((t - beam_start_time).total_seconds())
+                        
+                        # start tracking the new satellite and beam
+                        curr_sat, curr_beam = dest_sat, dest_beam
+                        sat_start_time, beam_start_time = t, t
+                        
+                    # the Satellite is the same. Did the Beam change? (intra_ho)
+                    elif curr_beam != dest_beam:
+                        # Close out the old beam tracking period
+                        if curr_beam is not None:
+                            cluster_beam_durations.append((t - beam_start_time).total_seconds())
+                        
+                        # Start tracking the new beam (Satellite tracking continues uninterrupted)
+                        curr_beam = dest_beam
+                        beam_start_time = t
 
-        # --- Calcolo KDE manuale con scipy ---
-        kde = gaussian_kde(service_time)
-        x_min, x_max = min(service_time), max(service_time)
-        margin = (x_max - x_min) * 0.2
-        kde_x = np.linspace(x_min - margin, x_max + margin, 500)
-        kde_y = kde(kde_x)
-
-        # --- Plot curva e area ---
+        # Base color for this cluster
         color = plt.cm.tab10(i)
-        ax.plot(kde_x, kde_y, color=color, linewidth=1.5)
-        ax.fill_between(kde_x, kde_y, alpha=0.2, color=color,
-                        label=f"Cluster {i+1}: {fname}")
 
-        # --- Simbolo sul massimo ---
-        idx_max = np.argmax(kde_y)
-        x_peak, y_peak = kde_x[idx_max], kde_y[idx_max]
-        ax.plot(x_peak, y_peak, marker='*', color=color,
-                markersize=14, markeredgecolor='black',
-                zorder=5, label='_nolegend_')
-        ax.annotate(f'  {x_peak:.1f}', xy=(x_peak, y_peak),
-                    fontsize=8, color=color, va='bottom')
+        # Dictionary to hold data for CSV saving later
+        csv_data = {}
+        
+        # Check for enough data and variance to do a KDE
+        if len(cluster_beam_durations) > 1 and min(cluster_beam_durations) != max(cluster_beam_durations):
+            kde_intra = gaussian_kde(cluster_beam_durations)
+            x_min_intra, x_max_intra = min(cluster_beam_durations), max(cluster_beam_durations)
+            margin_intra = (x_max_intra - x_min_intra) * 0.2
+            kde_x_intra = np.linspace(x_min_intra - margin_intra, x_max_intra + margin_intra, 500)
+            kde_y_intra = kde_intra(kde_x_intra)
 
-        # --- Save plot values (invariato) ---
-        if(save_plot_values):
+            # Plot solid line for Intra
+            ax.plot(kde_x_intra, kde_y_intra, color=color, linestyle='-', linewidth=1.5)
+            ax.fill_between(kde_x_intra, kde_y_intra, alpha=0.2, color=color,
+                            label=f"Cluster {i+1}: {fname}, intra")
+            
+            idx_max = np.argmax(kde_y_intra)
+            x_peak, y_peak = kde_x_intra[idx_max], kde_y_intra[idx_max]
+            ax.plot(x_peak, y_peak, marker='*', color=color, markersize=14, markeredgecolor='black', zorder=5)
+            ax.annotate(f'  {x_peak:.1f}', xy=(x_peak, y_peak), fontsize=8, color=color, va='bottom')
+
+            # Store for CSV
+            csv_data['intra_ho_x'] = kde_x_intra
+            csv_data['intra_ho_density'] = kde_y_intra
+        else:
+            print(f"Skipping KDE for Cluster {i+1} Intra HO due to lack of variance.")
+
+        if len(cluster_sat_durations) > 1 and min(cluster_sat_durations) != max(cluster_sat_durations):
+            kde_inter = gaussian_kde(cluster_sat_durations)
+            x_min_inter, x_max_inter = min(cluster_sat_durations), max(cluster_sat_durations)
+            margin_inter = (x_max_inter - x_min_inter) * 0.2
+            kde_x_inter = np.linspace(x_min_inter - margin_inter, x_max_inter + margin_inter, 500)
+            kde_y_inter = kde_inter(kde_x_inter)
+
+            # Plot dashed line for Inter to distinguish it
+            ax.plot(kde_x_inter, kde_y_inter, color=color, linestyle='--', linewidth=1.5)
+            ax.fill_between(kde_x_inter, kde_y_inter, alpha=0.1, color=color, # Lighter alpha
+                            label=f"Cluster {i+1}: {fname}, inter")
+            
+            idx_max = np.argmax(kde_y_inter)
+            x_peak, y_peak = kde_x_inter[idx_max], kde_y_inter[idx_max]
+            ax.plot(x_peak, y_peak, marker='o', color=color, markersize=8, markeredgecolor='black', zorder=5)
+            ax.annotate(f'  {x_peak:.1f}', xy=(x_peak, y_peak), fontsize=8, color=color, va='bottom')
+
+            # Store for CSV
+            csv_data['inter_ho_x'] = kde_x_inter
+            csv_data['inter_ho_density'] = kde_y_inter
+        else:
+            print(f"Skipping KDE for Cluster {i+1} Inter HO due to lack of variance.")
+
+        # --- SAVE PLOT VALUES ---
+        # We now save both intra and inter curves if they exist
+        if save_plot_values and csv_data:
             os.makedirs(os.path.join(output_folder, fname), exist_ok=True)
+            kde_df = pd.DataFrame(dict([(k, pd.Series(v)) for k, v in csv_data.items()])) 
+            kde_df.to_csv(os.path.join(output_folder, fname, "4-service_time.csv"), index=False)
 
-            kde_df = pd.DataFrame({'Duration_s': kde_x, 'Density': kde_y})
-            kde_df.to_csv(os.path.join(output_folder, fname, f"5.1-pdf_service_time_values_{folder_path.name}.csv"), index=False)
-
-            sorted_data = np.sort(service_time)
-            yvals = np.arange(len(sorted_data)) / float(len(sorted_data) - 1)
-            values_df = pd.DataFrame({'service_time': sorted_data, 'probability': yvals})
-            values_df.to_csv(os.path.join(output_folder, fname, "5.2-cdf_service_time_values.csv"), index=False)
-
-    # --- Finalize and Save the Combined Plot ---
     ax.set_title(f'Probability Density of Service Time - All Clusters ({period} Period) - {num_ues_label} UEs')
-    ax.set_xlabel('Duration [s]')
+    ax.set_xlabel('Service Time [s]')
     ax.set_ylabel('Probability Density')
     ax.grid(axis='y', alpha=0.3)
     ax.legend(title="Clusters", bbox_to_anchor=(1.05, 1), loc='upper left')
 
     os.makedirs(output_folder, exist_ok=True)
-    combined_file_path = os.path.join(output_folder, "5-service_time_pdf.png")
+    combined_file_path = os.path.join(output_folder, "4-service_time.png")
     fig.savefig(combined_file_path, dpi=300, bbox_inches='tight')
-    plt.show()
-    plt.close()
     print("   Completed!\n")
 
 # ========================================================================================================= # 
 
-# 6. Number of handover processes handled by each satellite
+# 5. Number of handover processes handled by each satellite
 if(ho_handled):
-    print("6. Priting the average number of handover handled for each satellite ...")
+    print("5. Priting the average number of handover handled for each satellite ...")
     folder_path = Path('Satellite dataframes')
-    ho_count = []
+    intra_ho_count = []
+    inter_ho_count = []
     num_sats = 0
+    fname = 'Satellites'
+
+    fig, ax = plt.subplots(figsize=(12, 6))
+    
+
     for file_path in folder_path.glob('*.csv'):
         # needed beacuse there are some saved satellites which have empty df
         try:
             df = pd.read_csv(file_path)
-            count = len(df[df['event_type'] == 'out_ho'])
-            count = count + len(df[df['event_type'] == 'in_ho'])
-            ho_count.append(count)
+            count_intra = len(df[df['event_type'] == 'intra_ho'])
+            count_inter = len(df[df['event_type'] == 'inter_ho'])
+            intra_ho_count.append(count_intra)
+            inter_ho_count.append(count_inter)
             num_sats += 1
         except Exception as e:
             print("Empty satellite dataframe!")
             continue
 
+    # Dictionary to hold data for CSV saving later
+    csv_data = {}
 
-    # 6.1
-    fig, ax1 = plt.subplots(figsize=(10, 5))
-    ax1.hist(ho_count, bins=range(min(ho_count), max(ho_count) + 2), 
-            color='skyblue', edgecolor='black', align='left', alpha=0.6)
-    ax1.set_xlabel('Number of Handovers')
-    ax1.set_ylabel('Number of Serving Satellites', color='steelblue', fontweight='bold')
-    ax1.tick_params(axis='y', labelcolor='steelblue')
-    ax1.grid(axis='y', alpha=0.3)
+    # Check for enough data and variance to do a KDE
+    if len(intra_ho_count) > 1 and min(intra_ho_count) != max(intra_ho_count):
+        kde_intra = gaussian_kde(intra_ho_count)
+        x_min_intra, x_max_intra = min(intra_ho_count), max(intra_ho_count)
+        margin_intra = (x_max_intra - x_min_intra) * 0.2
+        kde_x_intra = np.linspace(x_min_intra - margin_intra, x_max_intra + margin_intra, 500)
+        kde_y_intra = kde_intra(kde_x_intra)
 
-    ax2 = ax1.twinx()
-    sns.kdeplot(ho_count, fill=True, color="orange", ax=ax2, alpha=0.4)
-    ax2.set_ylabel('Probability Density', color='darkorange', fontweight='bold')
-    ax2.tick_params(axis='y', labelcolor='darkorange')
+        # Plot solid line for Intra
+        ax.plot(kde_x_intra, kde_y_intra, color=colors1[0], linestyle='-', linewidth=1.5)
+        ax.fill_between(kde_x_intra, kde_y_intra, alpha=0.2, color=colors1[0],
+                        label=f"Intra-handovers")
+        
+        idx_max = np.argmax(kde_y_intra)
+        x_peak, y_peak = kde_x_intra[idx_max], kde_y_intra[idx_max]
+        ax.plot(x_peak, y_peak, marker='*', color=colors1[0], markersize=14, markeredgecolor='black', zorder=5)
+        ax.annotate(f'  {x_peak:.1f}', xy=(x_peak, y_peak), fontsize=8, color=colors1[0], va='bottom')
 
-    plt.title(f'Out and In Handovers Distribution & Density per {num_sats} Serving Satellites ({period}) - {num_ues_label} UEs')
+        # Store for CSV
+        csv_data['intra_ho_x'] = kde_x_intra
+        csv_data['intra_ho_density'] = kde_y_intra
+    else:
+        print(f"Skipping KDE for Intra HO due to lack of variance.")
+
+    if len(inter_ho_count) > 1 and min(inter_ho_count) != max(inter_ho_count):
+        kde_inter = gaussian_kde(inter_ho_count)
+        x_min_inter, x_max_inter = min(inter_ho_count), max(inter_ho_count)
+        margin_inter = (x_max_inter - x_min_inter) * 0.2
+        kde_x_inter = np.linspace(x_min_inter - margin_inter, x_max_inter + margin_inter, 500)
+        kde_y_inter = kde_inter(kde_x_inter)
+
+        # Plot dashed line for Inter to distinguish it
+        ax.plot(kde_x_inter, kde_y_inter, color=colors1[1], linestyle='--', linewidth=1.5)
+        ax.fill_between(kde_x_inter, kde_y_inter, alpha=0.1, color=colors1[1], # Lighter alpha
+                        label=f"Inter-handovers")
+        
+        idx_max = np.argmax(kde_y_inter)
+        x_peak, y_peak = kde_x_inter[idx_max], kde_y_inter[idx_max]
+        ax.plot(x_peak, y_peak, marker='o', color=colors1[1], markersize=8, markeredgecolor='black', zorder=5)
+        ax.annotate(f'  {x_peak:.1f}', xy=(x_peak, y_peak), fontsize=8, color=colors1[1], va='bottom')
+
+        # Store for CSV
+        csv_data['inter_ho_x'] = kde_x_inter
+        csv_data['inter_ho_density'] = kde_y_inter
+    else:
+        print(f"Skipping KDE for Inter HO due to lack of variance.")
+
+    # --- SAVE PLOT VALUES ---
+    # We now save both intra and inter curves if they exist
+    if save_plot_values and csv_data:
+        os.makedirs(os.path.join(output_folder, fname), exist_ok=True)
+        kde_df = pd.DataFrame(dict([(k, pd.Series(v)) for k, v in csv_data.items()])) 
+        kde_df.to_csv(os.path.join(output_folder, fname, "5-num_of_hos_per_sat.csv"), index=False)
+
+    ax.set_title(f'Cumulative Distribution of Out and In Handovers per {num_sats} serving satellites ({period} Period) - {num_ues_label} UEs')
+    ax.set_xlabel('Number of Handovers')
+    ax.set_ylabel('Probability Density')
+    ax.grid(axis='y', alpha=0.3)
+    ax.legend(title="Clusters", bbox_to_anchor=(1.05, 1), loc='upper left')
+
     os.makedirs(output_folder, exist_ok=True)
-    combined_file = os.path.join(output_folder, "6.1-pdf_satellite_ho.png")
-    plt.savefig(combined_file, dpi=300, bbox_inches='tight')
-    plt.close()
-
-
-    # 6.2
-    sorted_data = np.sort(ho_count)
-    yvals = np.arange(len(sorted_data)) / float(len(sorted_data) - 1)
-    plt.figure(figsize=(10,5))
-    plt.plot(sorted_data, yvals, marker='.', linestyle='none')
-    plt.title(f'Cumulative Distribution of Out and In Handovers per {num_sats} serving satellites ({period} Period) - {num_ues_label} UEs')
-    plt.xlabel('Number of Handovers')
-    plt.ylabel('CDF')
-    plt.grid(True)
-    os.makedirs(output_folder, exist_ok=True)
-    file_name = "6.2-cdf_ho_handled.png"
-    file_path = os.path.join(output_folder, file_name)
-    plt.savefig(file_path, dpi=300, bbox_inches='tight')
-    plt.close()
-    
+    combined_file_path = os.path.join(output_folder, "5-ho_per_sat.png")
+    fig.savefig(combined_file_path, dpi=300, bbox_inches='tight')
     print("   Completed!\n")
+
 
 # ========================================================================================================= #
 
-# 7. Average throughput
-# if(get_throughput):
-    
-#     print("7. Average trhoguhput ...")
-#     folder_path = Path('Ue dataframes')
 
-#     # Phase 1: know which satellite the ue_x is connected to for each time instant
-#     # list to collect connection data and time instant for all ues
-#     ues = []
-#     count = 0 # compute the throughput for only N UEs to avoid crowded plots
-#     for file_path in folder_path.glob('*.csv'): # scan all the ue dataframes (ClusterN-UeXX_handover_events.csv)
-#         suffix = "_handover_events.csv"
-#         ue_id = file_path.name.replace(suffix, "") # ClusterN-UeXX
-#         if(count == N):
-#             break
-#         df = pd.read_csv(file_path) # read the current UE dataframe
-#         result = list(df[['arrival_time', 'dest_satellite']].to_records(index=False))
+# 6. Average number and duration of out of services
+if(out_of_service):
+    print("6. Printing the average out of service time (lost_conn to rest_conn) ...")
 
-#         # list where it is saved at which satellite the ue is connected for all time instants
-#         # index 0 correpsonds to time instant 0s, index 1 correpsonds to time instant 1s, ...
-#         connected_to = []
-#         ho_times = [0]
-#         for ii, xx in enumerate(result):
-#             ti = datetime.strptime(result[ii][0], "%Y-%m-%d %H:%M:%S")
-#             if(ii == len(result)-1):
-#                 tf = simTimeEnd
-#             else:
-#                 tf = datetime.strptime(result[ii+1][0], "%Y-%m-%d %H:%M:%S")
-#             sec = int((tf-ti).total_seconds())
-#             ho_times.append(sec+ho_times[-1])
-#             connected_to = connected_to + [result[ii][1]]*sec
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    for i, (df_name, fname) in enumerate(zip(dfnames, fnames)):
+        folder_path = Path("Cluster" + str(i+1) + " dataframes")
         
-#         # the last element (out of scope for the sim time) is the ue_id and the ho time instances
-#         connected_to.append((ue_id, ho_times[1:]))
-#         ues.append(connected_to)
-#         count += 1
-
-#     # Phase 2: know the max DL/UL thr. of satellite y at specific time instant
-#     # Phase 3: know  how many users a satellite is connected to at a specific time instnat
-#     all_thr = []
-#     data_frame = pd.read_csv(df_name) # TODO we now have multiple dataframe names
-#     for ue in ues:
-#         ue_id = ue[-1][0]
-#         ho_times = ue[-1][1]
-#         print("   UE ID", ue_id)
-#         thr = []
-#         for sec, sat_name in enumerate(ue[:-1]):
-#             time = simTimeStart + timedelta(seconds=sec)
+        # Master list for out-of-service durations for this cluster
+        cluster_out_serv_durations = []
+        
+        for file_path in folder_path.glob('*.csv'):
+            df = pd.read_csv(file_path)
+            if df.empty:
+                continue
             
-#             #the ue is not connected to any satellite
-#             if(pd.isna(sat_name)): 
-#                 thr.append((0,0))
-#                 continue
+            # parse time safely and ensure it is chronological
+            df['arrival_time'] = pd.to_datetime(df['arrival_time'], errors='coerce', utc=True)
+            df = df.sort_values('arrival_time')
+            
+            # state tracker for out of service periods
+            out_serv_start_time = None
+            
+            for row in df.itertuples():
+                t = row.arrival_time
+                
+                # safely extract destinations
+                dest_sat = row.dest_satellite if pd.notna(row.dest_satellite) and str(row.dest_satellite) != 'None' else None
 
-#             # the ue is connected to a satellite
-#             max_dl_thr, max_ul_thr = utils.get_max_thr(data_frame, sat_name, time)
+                # case A: the UE is disconnected entirely (out_serv / lost_conn event)
+                if dest_sat is None:
+                    # If we aren't already tracking a disconnection, start tracking now
+                    if out_serv_start_time is None:
+                        out_serv_start_time = t
+                        
+                # case B: the UE is connected to a satellite (rest_conn event)
+                else:
+                    # If we were tracking a disconnection, close it out and record the duration
+                    if out_serv_start_time is not None:
+                        cluster_out_serv_durations.append((t - out_serv_start_time).total_seconds())
+                        out_serv_start_time = None # Reset state for the next potential lost_conn
 
-#             folder_name = "Satellite dataframes"
-#             file_name = sat_name + "_handover_events.csv"
-#             file_path = Path(folder_name) / file_name
-#             curr_sat_df = pd.read_csv(file_path)
-#             curr_sat_df['arrival_time'] = pd.to_datetime(curr_sat_df['arrival_time'])
-#             curr_sat_df = curr_sat_df[curr_sat_df['arrival_time'] <= time]
-#             num_ues = 0
-#             for index, row in curr_sat_df.iterrows():
-#                 if row['event_type'] == 'init_con':
-#                     num_ues += 1
-#                 elif row['event_type'] == 'out_ho':
-#                     num_ues -= 1
-#                 elif row['event_type'] == 'in_ho':
-#                     num_ues += 1
-#             dl_thr = max_dl_thr / num_ues 
-#             ul_thr = max_ul_thr / num_ues 
-#             thr.append((dl_thr, ul_thr))
+        # Base color for this cluster
+        color = plt.cm.tab10(i)
 
-#         # the last element (out of scope for the sim time) is the ue_id and the ho time instances
-#         thr.append((ue_id, ho_times))
-#         all_thr.append(thr)
-
-#     # 7.1 DL thr plot
-#     plt.figure(figsize=(10,5))
-#     for ii, xx in enumerate(all_thr):
-#         dl_thr = list(zip(*xx[:-1]))[0]
-#         ho_times = xx[-1][1]
-#         ho_values = [dl_thr[i-1] for i in ho_times] # avoid index overflow
-#         ue_id = xx[-1][0]
-#         plt.scatter(ho_times, ho_values, marker='x', label = f'UE ID {ue_id} ho', color=colors1[ii])
-#         plt.plot(dl_thr, label = f'UE ID {ue_id}', linestyle="--", color=colors1[ii])
-#     plt.title('DL throughputs')
-#     plt.xlabel('Time [sec]')
-#     plt.ylabel('Throghput [Mbit/s]')
-#     plt.grid(True)
-#     plt.legend()
-#     os.makedirs(output_folder, exist_ok=True)
-#     file_name = "7.1 DL Throughput.png"
-#     file_path = os.path.join(output_folder, file_name)
-#     plt.savefig(file_path, dpi=300, bbox_inches='tight')
-
-#     # 7.2 UL thr plot
-#     plt.figure(figsize=(10,5))
-#     for ii, xx in enumerate(all_thr):
-#         ul_thr = list(zip(*xx[:-1]))[1]
-#         ho_times = xx[-1][1]
-#         ho_values = [ul_thr[i-1] for i in ho_times] # avoid index overflow
-#         ue_id = xx[-1][0]
-#         plt.scatter(ho_times, ho_values, marker='x', label = f'UE ID {ue_id} ho', color=colors1[ii])
-#         plt.plot(ul_thr, label = f'UE ID {ue_id}', linestyle="--", color=colors1[ii])
-#     plt.title('UL throughputs')
-#     plt.xlabel('Time [sec]')
-#     plt.ylabel('Throghput [Mbit/s]')
-#     plt.grid(True)
-#     plt.legend()
-#     os.makedirs(output_folder, exist_ok=True)
-#     file_name = "7.2 UL Throughput.png"
-#     file_path = os.path.join(output_folder, file_name)
-#     plt.savefig(file_path, dpi=300, bbox_inches='tight')
-
+        # Dictionary to hold data for CSV saving later
+        csv_data = {}
         
-#     print("   Completed!\n")
+        # Check for enough data and variance to do a KDE
+        if len(cluster_out_serv_durations) > 1 and min(cluster_out_serv_durations) != max(cluster_out_serv_durations):
+            kde_out = gaussian_kde(cluster_out_serv_durations)
+            x_min_out, x_max_out = min(cluster_out_serv_durations), max(cluster_out_serv_durations)
+            margin_out = (x_max_out - x_min_out) * 0.2
+            kde_x_out = np.linspace(x_min_out - margin_out, x_max_out + margin_out, 500)
+            kde_y_out = kde_out(kde_x_out)
 
+            # Plot solid line for Out of Service times
+            ax.plot(kde_x_out, kde_y_out, color=color, linestyle='-', linewidth=1.5)
+            ax.fill_between(kde_x_out, kde_y_out, alpha=0.3, color=color,
+                            label=f"Cluster {i+1}: {fname}")
+            
+            # Mark the peak (highest probability density)
+            idx_max = np.argmax(kde_y_out)
+            x_peak, y_peak = kde_x_out[idx_max], kde_y_out[idx_max]
+            ax.plot(x_peak, y_peak, marker='s', color=color, markersize=8, markeredgecolor='black', zorder=5)
+            ax.annotate(f'  {x_peak:.1f}', xy=(x_peak, y_peak), fontsize=8, color=color, va='bottom')
 
+            # Store for CSV
+            csv_data['out_serv_x'] = kde_x_out
+            csv_data['out_serv_density'] = kde_y_out
+        else:
+            print(f"Skipping KDE for Cluster {i+1} Out of Service Time due to lack of variance or data.")
 
-# # 7.3 Get the throughput considering the hadover outage time
-# if(get_throuthput_ho):
-#     print("7.3 Plotting the average throughput considering the hangover outage time ...")
-#     current_cluster_name = "Cluster3"
-#     current_master_name = "200km_sc9_lucerna_countdown.csv"
-#     folder_path = Path(current_cluster_name + ' dataframes')
-#     ues_handovers_lists = []
-#     count = 0 # compute the throughput for only N UEs to avoid crowded plots
-#     # loop for each ue in the current cluster
-#     for file_path in folder_path.glob('*.csv'): # scan all the ue dataframes (ClusterN-UeXX_handover_events.csv)
-#         suffix = "_handover_events.csv"
-#         ue_id = file_path.name.replace(suffix, "") # ClusterN-UeXX
-#         if(count == num_ues_to_plot):
-#             break
-#         ue_handovers_df = pd.read_csv(file_path) # read the current UE dataframe
-#         ue_out_ho_df = ue_handovers_df[ue_handovers_df['event_type'] == 'out_ho']
-#         # parse arrival time
-#         arr_naive = pd.to_datetime(ue_out_ho_df['arrival_time'], errors='coerce')
-#         # important: the arrival time is a datetime object with localization on a specific timezone, while unix epoch time is always UTC.
-#         # to avoid offset issues, we need to specify that the time is in the timezone of the simulation, (in this case europe) and
-#         # convert it to UTC timezone, so we can subtract it from the departure time with no issues.
-#         arr = arr_naive.dt.tz_localize('Europe/Berlin').dt.tz_convert('UTC')
-#         # parse departure time (unix time is always UTC)
-#         dep = pd.to_datetime(ue_out_ho_df['departure_time'], unit='s', errors='coerce', utc=True)
-#         # compute the difference
-#         duration_series = dep - arr
-#         # convert to milliseconds
-#         duration_ms = duration_series.dt.total_seconds() * 1000
-#         # add a first element zero to account for the initial connection happening instantly at the beginning of the simulation (initial condition)
-#         duration_ms = pd.concat([pd.Series([0]), duration_ms], ignore_index=True)
-#         # print("Examining UE ", ue_id)
-#         # print("Duration ms (First 5):\n", duration_ms.head())
-#         ue_handovers_df['ho_duration_ms'] = duration_ms.values
-#         ue_handovers_list = list(ue_handovers_df[['arrival_time', 'dest_satellite', 'ho_duration_ms']].to_records(index=False))
-#         ues_handovers_lists.append((ue_id, ue_handovers_list))
-#         count = count + 1
+        # --- SAVE PLOT VALUES ---
+        if save_plot_values and csv_data:
+            os.makedirs(os.path.join(output_folder, fname), exist_ok=True)
+            kde_df = pd.DataFrame(dict([(k, pd.Series(v)) for k, v in csv_data.items()])) 
+            kde_df.to_csv(os.path.join(output_folder, fname, "6-out_of_service_time.csv"), index=False)
+
+    # Finalize chart formatting
+    ax.set_title(f'Probability Density of Out of Service Time - All Clusters ({period} Period) - {num_ues_label} UEs')
+    ax.set_xlabel('Out of Service Duration [s]')
+    ax.set_ylabel('Probability Density')
+    ax.grid(axis='y', alpha=0.3)
+    ax.legend(title="Clusters", bbox_to_anchor=(1.05, 1), loc='upper left')
+
+    os.makedirs(output_folder, exist_ok=True)
+    combined_file_path = os.path.join(output_folder, "6-out_of_service_time.png")
+    fig.savefig(combined_file_path, dpi=300, bbox_inches='tight')
+    print("   Completed!\n")
     
-#     all_thr_dl = []
-#     all_thr_ul = []
-#     satellite_df_path = Path("Satellite dataframes")
-#     for ue_id, ue_handovers_list in ues_handovers_lists:
+    
 
-#         ho_timestamps = np.array(ue_handovers_list)['arrival_time'].tolist()
-#         # print(ho_timestamps)
-
-#         per_ue_throughputs_dl = []
-#         per_ue_throughputs_ul = []
-#         for ii, handover_item in enumerate(ue_handovers_list):
-#             ho_time = datetime.strptime(handover_item[0], "%Y-%m-%d %H:%M:%S")
-#             sat_name = handover_item[1]
-#             ho_duration_ms = handover_item[2]
-#             if(sat_name is not None and not pd.isna(sat_name)):
-#                 satellite_file_path = satellite_df_path / f"{sat_name}_handover_events.csv"
-#                 if satellite_file_path.exists():
-#                     sat_df = pd.read_csv(satellite_file_path)
-#                     sat_df['arrival_time'] = pd.to_datetime(sat_df['arrival_time'])
-#                     num_ues = 0
-#                     if(ii == len(ue_handovers_list)-1):
-#                         next_ho_time = simTimeEnd
-#                         break
-#                     else:
-#                         next_ho_time = datetime.strptime(ue_handovers_list[ii+1][0], "%Y-%m-%d %H:%M:%S")
-#                     event_map = {
-#                         'init_con': 1,  # Adds a user
-#                         'in_ho': 1,      # Adds a user
-#                         'out_ho': -1     # Removes a user
-#                     }
-
-#                     before_connecting_df = sat_df[sat_df['arrival_time'] < ho_time]
-#                     before_connecting_df['user change'] = before_connecting_df['event_type'].map(event_map)
-#                     net_sum_before = before_connecting_df['user change'].sum()
-#                     after_connecting_df = sat_df[sat_df['arrival_time'].between(ho_time, next_ho_time)]
-#                     after_connecting_df['user_change'] = after_connecting_df['event_type'].map(event_map)
-#                     after_connecting_df.set_index('arrival_time', inplace=True)
-#                     net_changes = after_connecting_df['user_change'].resample('1s').sum() 
-#                     connected_users = net_changes.cumsum() + net_sum_before
-#                     orbit_df = pd.read_csv(current_master_name)
-
-#                     time = ho_time
-#                     temp_dl_thr, temp_ul_thr = [], []
-
-#                     while time < next_ho_time:
-#                         max_dl_thr, max_ul_thr = utils.get_max_thr(orbit_df, sat_name, time)
-#                         temp_dl_throughput = max_dl_thr / connected_users[time]
-#                         temp_ul_throughput = max_ul_thr / connected_users[time]
-#                         if(ho_duration_ms >= 1000):
-#                             temp_dl_throughput = 0
-#                             temp_ul_throughput = 0
-#                             ho_duration_ms -= 1000
-#                         elif(ho_duration_ms > 0):
-#                             temp_dl_throughput = temp_dl_throughput * (1 - ho_duration_ms/1000)
-#                             temp_ul_throughput = temp_ul_throughput * (1 - ho_duration_ms/1000)
-#                             ho_duration_ms = 0
-#                         per_ue_throughputs_dl.append(temp_dl_throughput)
-#                         per_ue_throughputs_ul.append(temp_ul_throughput)
-#                         time = time + timedelta(seconds = 1)
-                     
-#                 else:
-#                     print(f"Satellite dataframe for {sat_name} not found!")
-#             else:
-#                 print("UE is not connected to any satellite at time ", ho_time)
-#         all_thr_dl.append((ue_id, per_ue_throughputs_dl, ho_timestamps))
-#         all_thr_ul.append((ue_id, per_ue_throughputs_ul))
-#         print("Completed UE ", ue_id)
-        
-#     print("Plotting the DL throughput considering the handover outage time ...")
-#     plt.figure(figsize=(10,5))
-#     for ii, id_throughput in enumerate(all_thr_dl):
-#         dl_thr = list(id_throughput[1])
-#         ue_id = id_throughput[0]
-#         ho_times = id_throughput[2]
-#         time_vector = pd.date_range(start=simTimeStart, periods=200, freq='1s')
-#         plt.plot(time_vector,dl_thr[:200], label = f'UE ID {ue_id}', color=colors1[ii])
-#     plt.title('DL throughputs')
-#     plt.xlabel('Time [sec]')
-#     plt.ylabel('Throghput [Mbit/s]')
-#     plt.grid(True)
-#     plt.legend()
-#     os.makedirs(output_folder, exist_ok=True)
-#     file_name = "7.3 DL Throughput_ho.png"
-#     file_path = os.path.join(output_folder, file_name)
-#     plt.savefig(file_path, dpi=300, bbox_inches='tight')
-
-#     print("   Completed!\n")
-
+# ========================================================================================================= #
 
 # 7.3.2 Get the throughput considering the handover outage time (v2)
 if(get_throuthput_ho_v2):
@@ -728,105 +767,6 @@ if(get_throuthput_ho_v2):
 
 # ========================================================================================================= #
 
-# 8. Average number and duration of out of services
-if(out_of_service):
-    print("8. Priting the average number and durtation of out of services ...")
-    folder_path = Path('Cluster1 dataframes')
-    avg_lens = []
-    avg_losses = []
-    num_ues = 0
-
-    for file_path in folder_path.glob('*.csv'):
-        df = pd.read_csv(file_path)
-        duration = []
-        count = 0
-        # take two consecutive rows per iteration
-        for r1, r2 in zip(df.itertuples(), df.iloc[1:].itertuples()):
-            ev1 = r1.event_type
-            ev2 = r2.event_type
-            
-            if ev2 == "out_serv":
-                count += 1
-            elif ev1 == "out_serv" and ev2 != "out_serv":
-                duration.append(count+1)
-                count = 0
-        if(len(duration)>0):
-            avg_lens.append(np.mean(duration))
-            avg_losses.append(len(duration))
-        num_ues += 1
-
-    if(len(avg_lens) > 0):
-        print(f"   Averaged number of out of service events: {np.mean(avg_losses)} , for an average time of {np.mean(avg_lens)} ms")
-    else:
-        print("   No out of service events")
-    
-
-    # Do not plot anything since usually we never have out of service events.
-    '''
-    # 8.1
-    #print(avg_lens)
-    #print(avg_losses)
-    plt.figure(figsize=(10, 5))
-    sns.kdeplot(avg_lens, fill=True, color="orange")
-    plt.title(f'Probability Density of Out of Service Duration per {num_ues} UEs ({period} Period)')
-    plt.xlabel('Duration [s]')
-    os.makedirs(output_folder, exist_ok=True)
-    file_name = "8.1-pdf_oos_duration.png"
-    file_path = os.path.join(output_folder, file_name)
-    plt.savefig(file_path, dpi=300, bbox_inches='tight')
-
-    # 8.2
-    sorted_data = np.sort(avg_lens)
-    yvals = np.arange(len(sorted_data)) / float(len(sorted_data) - 1)
-    plt.figure(figsize=(10,5))
-    plt.plot(sorted_data, yvals, marker='.', linestyle='none')
-    plt.title(f'Cumulative Distribution of Out of Service per {num_ues} UEs ({period} Period)')
-    plt.xlabel('Duration [s]')
-    plt.ylabel('CDF')
-    plt.grid(True)
-    os.makedirs(output_folder, exist_ok=True)
-    file_name = "8.2-cdf_oos_duration.png"
-    file_path = os.path.join(output_folder, file_name)
-    plt.savefig(file_path, dpi=300, bbox_inches='tight')
-
-    # 8.3
-    fig, ax1 = plt.subplots(figsize=(10, 5))
-    ax1.hist(avg_losses, bins=range(min(avg_losses), max(avg_losses) + 2), 
-            color='skyblue', edgecolor='black', align='left', alpha=0.6)
-    ax1.set_xlabel('Duration [s]')
-    ax1.set_ylabel('Number of Out of Service', color='steelblue', fontweight='bold')
-    ax1.tick_params(axis='y', labelcolor='steelblue')
-    ax1.grid(axis='y', alpha=0.3)
-
-    ax2 = ax1.twinx()
-    sns.kdeplot(avg_losses, fill=True, color="orange", ax=ax2, alpha=0.4)
-    ax2.set_ylabel('Probability Density', color='darkorange', fontweight='bold')
-    ax2.tick_params(axis='y', labelcolor='darkorange')
-
-    plt.title(f'Out of Service events per {num_ues} UEs ({period})')
-    os.makedirs(output_folder, exist_ok=True)
-    combined_file = os.path.join(output_folder, "8.3-pdf_oos_events.png")
-    plt.savefig(combined_file, dpi=300, bbox_inches='tight')
-
-    # 8.4
-    sorted_data = np.sort(avg_lens)
-    yvals = np.arange(len(sorted_data)) / float(len(sorted_data) - 1)
-    plt.figure(figsize=(10,5))
-    plt.plot(sorted_data, yvals, marker='.', linestyle='none')
-    plt.title(f'Cumulative Distribution of Out of Service Events per {num_ues} UEs ({period} Period)')
-    plt.xlabel('Duration [s]')
-    plt.ylabel('CDF')
-    plt.grid(True)
-    os.makedirs(output_folder, exist_ok=True)
-    file_name = "8.4-cdf_oos_duration.png"
-    file_path = os.path.join(output_folder, file_name)
-    plt.savefig(file_path, dpi=300, bbox_inches='tight')
-    '''
-    
-    
-    print("   Completed!\n")
-
-# ========================================================================================================= #
 
 # 9. Number of ping-pong handovers
 if(ping_pong_handovers):
