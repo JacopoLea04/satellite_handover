@@ -2,6 +2,8 @@ from datetime import datetime, timedelta
 import pandas as pd
 from tqdm import tqdm
 import argparse
+import os 
+import shutil
 
 from cluster import Cluster
 from ue import Ue
@@ -88,6 +90,18 @@ with tqdm(total=total_iterations, desc="Simulating") as pbar:
 print("Simulation Complete!\n")
 
 print("Creating the folder with the ue dataframes ...")
+
+
+output_folders = (
+    [f"{cluster.name} dataframes" for cluster in clusters] +
+    [f"{cluster.name} throughput" for cluster in clusters] +
+    ["Satellite dataframes"]
+)
+
+# if there are old results, delete them
+for folder in output_folders:
+    if os.path.exists(folder):
+        shutil.rmtree(folder)
 
 for name, sat in service_sats.items():
     sat.deactivate()
