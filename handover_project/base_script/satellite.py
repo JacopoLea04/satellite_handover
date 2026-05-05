@@ -38,8 +38,8 @@ class Satellite:
             Generate the handover_info struct, and specifically the queue delay, for intra-handover.
             """
             event_type = "intra_ho"
-            # duration = random.expovariate(self.mu_intra)
-            duration = self.mu_intra # for testing purposes, we set a fixed duration of 30ms for the handover process
+            # duration = random.expovariate(self.mu_intra)    
+            duration = self.mu_intra # 1 ms
             earliest_time = heapq.heappop(self.events_queue_intra)
             arrival_time_rel = arrival_time.timestamp()
             start_time = max(arrival_time_rel, earliest_time)
@@ -71,7 +71,7 @@ class Satellite:
             
             event_type = "inter_ho"
             # duration = random.expovariate(self.mu_inter)
-            duration = self.mu_inter # for testing purposes, we set a fixed duration of 30ms for the handover process
+            duration = self.mu_inter  # 30 ms
             earliest_time = heapq.heappop(self.events_queue_inter)
             arrival_time_rel = arrival_time.timestamp()
             start_time = max(arrival_time_rel, earliest_time)

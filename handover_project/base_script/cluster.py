@@ -159,7 +159,7 @@ class Cluster:
 
         # check if each UE needs to perform an intra or an inter handover based on the handover condition.
         for mini_cluster in self.list_beams:
-            for ue_index, ue in enumerate(mini_cluster.list_ues):
+            for ue in mini_cluster.list_ues:
                 curr_sat, curr_beam_index = ue.get_connection_info()
                 intra_handover = False
                 inter_handover = False
@@ -171,29 +171,28 @@ class Cluster:
                 if curr_sat is None: # UE is not connected to any satellite
                     index = -1
                 else:
-                    index = next((i for i, (obj, *_) in enumerate(visible_sats_for_each_minicluster[ue_index]) if obj[0][0] == curr_sat.name), -1)
+                    index = next((i for i, (obj, *_) in enumerate(visible_sats_for_each_minicluster[mini_cluster.index]) if obj[0] == curr_sat.name), -1)
                     
-
                 if (index == -1): # the current satellite is not visible anymore --> inter handover
                     inter_handover = True
                     snr = None # TODO for future implementation
-                elif (curr_beam_index != visible_sats_for_each_minicluster[ue_index][index][1]): # the current satellite is still visible --> check if intra handover is needed
+                elif (curr_beam_index != visible_sats_for_each_minicluster[mini_cluster.index][index][1]): # the current satellite is still visible --> check if intra handover is needed
                     intra_handover = True
-                else: # the current satellite is still visible and the beam is the same --> check if handover is needed based on other conditions (e.g., SNR)
+                # else: # the current satellite is still visible and the beam is the same --> check if handover is needed based on other conditions (e.g., SNR)
                     # TODO
-                    print("No handover needed based on visibility, check other conditions (e.g., SNR)")
+                    #print("No handover needed based on visibility, check other conditions (e.g., SNR)")
 
                 # ============== Performe the handover (if selected) ==============
                 
                 if(intra_handover): # handover to a new visible beam of the same satellite
                     next_sat = curr_sat
-                    next_beam_index = visible_sats_for_each_minicluster[ue_index][index][1]
+                    next_beam_index = visible_sats_for_each_minicluster[mini_cluster.index][index][1]
                     ue.intra_handover(time, next_sat, next_beam_index)
 
                 elif(inter_handover): # handover to a new beam of a new satellite
 
                     # possible satellites beams towards which the ue could handover
-                    choices = len(visible_sats_for_each_minicluster[ue_index])
+                    choices = len(visible_sats_for_each_minicluster[mini_cluster.index])
                     # if no one, the ue goes out of service
                     if(choices == 0):
                         next_sat = None
@@ -202,8 +201,8 @@ class Cluster:
                     else:
                         # select a random satellite among the visible ones and handover to it
                         random_index = random.randint(0, choices-1)
-                        next_sat = visible_sats_for_each_minicluster[ue_index][random_index][0]
-                        next_beam_index = visible_sats_for_each_minicluster[ue_index][random_index][1]
+                        next_sat = visible_sats_for_each_minicluster[mini_cluster.index][random_index][0]
+                        next_beam_index = visible_sats_for_each_minicluster[mini_cluster.index][random_index][1]
 
                         # is this satellite already configured?
                         selected_sat_name = next_sat[0]

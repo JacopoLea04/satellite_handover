@@ -703,3 +703,32 @@ def get_coverage_beam_indices_matrix(visible_clusters_indices_matrix, cell_dim_b
     # print(coverage_beams_matrix)
     return coverage_beams_matrix
 
+def calculate_beams_grid(center_lat, center_lon, beam_size_km, num_beams):
+    """
+    This function calculates the positions of the beams' centers in a grid pattern around the center position.
+    """
+    grid_size = int(np.sqrt(num_beams))
+    # Ensure inputs are treated as float64 (doubles)
+    center_lat = np.float64(center_lat)
+    center_lon = np.float64(center_lon)
+
+    KM_PER_DEG_LAT = np.float64(111.32)
+    km_per_deg_lon = KM_PER_DEG_LAT * np.cos(np.radians(center_lat))
+
+    indices = np.arange(grid_size)
+    center_idx = grid_size // 2 
+
+    col_grid, row_grid = np.meshgrid(indices, indices)
+
+    # Calculate offsets using float64 math
+    delta_y_km = (center_idx - row_grid).astype(np.float64) * beam_size_km
+    delta_x_km = (col_grid - center_idx).astype(np.float64) * beam_size_km
+
+    # Final Lats and Lons
+    lats = (center_lat + (delta_y_km / KM_PER_DEG_LAT)).flatten()
+    lons = (center_lon + (delta_x_km / km_per_deg_lon)).flatten()
+
+    # Create altitude as float64 zeros
+    alts = np.zeros_like(lats, dtype=np.float64)
+
+    return list(zip(lats, lons, alts))

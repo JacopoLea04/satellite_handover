@@ -15,8 +15,8 @@ data_frame_1 = pd.read_csv(df_name_1)
 # satellites parameters
 simTime = timedelta(minutes=20)
 servers = 1
-mu_inter = 1/(30*1e-3) # default is 1/(30*1e-3)
-mu_intra = 1/(1*1e-3) # default is 1/(1*1e-3)
+mu_inter = 30 * 1e-3 # default is 1/(30*1e-3)
+mu_intra = 1 * 1e-3 # default is 1/(1*1e-3)
 num_ues = 100
 num_beams = 25
 beam_size_km = 50
