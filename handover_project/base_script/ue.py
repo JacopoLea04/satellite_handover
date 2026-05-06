@@ -11,8 +11,9 @@ class Ue:
         self.connected_to = None
         self.connected_to_beam = None
         self.handover_tracker = []
-        self.ho_flag = False # save if the ue has performed ho in the current time instant
-        self.ho_duration = 0 # [ms] save the ho duration at this time instant if the ue has performed ho
+        self.intra_handover_flag = False # save if the ue has performed ho in the current time instant
+        self.inter_handover_flag = False
+        self.remaining_handover_execution_time = 0 # [ms] save the ho duration at this time instant if the ue has performed ho
         self.thr_tracker = []
 
     
@@ -100,6 +101,7 @@ class Ue:
 
             # update UE infos
             self.disconnect()
+            self.remaining_handover_execution_time = handover_info["duration"]
             self.handover_tracker.append(handover_info)
 
             return 
@@ -126,6 +128,7 @@ class Ue:
                 dest_sat.connect_ue(dest_beam_index)
 
                 # update UE infos
+                self.remaining_handover_execution_time = handover_info["duration"] * 1000
                 self.handover_tracker.append(handover_info)
                 self.connect_to_satellite(dest_sat , dest_beam_index)
 
@@ -139,6 +142,7 @@ class Ue:
                 curr_sat.disconnect_ue(curr_beam_index)
 
                 # update UE infos
+                self.remaining_handover_execution_time = handover_info["duration"] * 1000
                 self.handover_tracker.append(handover_info)
                 self.connect_to_satellite(dest_sat , dest_beam_index)
 
@@ -160,7 +164,7 @@ class Ue:
 
         # update the ue infos
         self.connect_to_satellite(dest_sat , dest_beam_index) # so as to update to which satellite this ue is connected
-        self.ho_duration = handover_info["duration"] # TODO why do we still need this? What was its purpose?
+        self.remaining_handover_execution_time = handover_info["duration"] * 1000
         self.handover_tracker.append(handover_info)
 
         return 
