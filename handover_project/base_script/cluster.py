@@ -85,6 +85,12 @@ class Cluster:
             sat_lat, sat_lon = sat[1], sat[2]
             sat_cell_boundaries = utils.compute_cell_boundaries_lla(sat_lat, sat_lon, self.beam_size_km*1000, int(np.sqrt(self.num_beams)))
             visible_clusters_indices = utils.check_clusters_visibility(self.positions, sat_cell_boundaries, int(np.sqrt(self.num_beams)))
+
+            # case when the current examinated satellite illimunate only a portion of a specific mini-cluster but not its center, i.e., it
+            # illuminates less then 50%, so we conclude that mini-cluster cannot be served by that satellite beam.
+            if(visible_clusters_indices.size == 0):
+                continue
+
             satellite_beam_indices = utils.get_coverage_beam_indices_matrix(visible_clusters_indices, int(np.sqrt(self.num_beams)))
             
             rows, cols = visible_clusters_indices.shape
