@@ -11,6 +11,34 @@ import csv
 import pandas as pd
 
 
+sc6_parameters = {
+    'eirp_ue' : 76.2,   # dBm
+    'gt_sat' : 13,      # dBi
+    'eirp_sat' : 60,    # dBm
+    'gt_ue' : 15.9,     # dBi
+    'bw_dl' : 400e6,     # Hz
+    'bw_ul' : 400e6,    # Hz
+    'freq_dl' : 2e9,    # Hz
+    'freq_ul' : 3e9,    # Hz
+    'atm_loss' : 5.3,   # dB
+    'dl_db_headroom' : 0, # dB
+    'ul_db_headroom' : 0  # dB
+}
+
+sc9_parameters = {
+    'eirp_ue' : 23,     # dBm
+    'gt_sat' : 1.1,     # dBi
+    'eirp_sat' : 78.8,  # dBm
+    'gt_ue' : -31.6,    # dBi
+    'bw_dl' : 30e6,     # Hz
+    'bw_ul' : 0.4e6,    # Hz
+    'freq_dl' : 2e9,    # Hz
+    'freq_ul' : 3e9,    # Hz
+    'atm_loss' : 0.8,   # dB
+    'dl_db_headroom' : 2, # dB
+    'ul_db_headroom' : 2  # dB
+}
+
 def get_visible_satellites(df, service_sats, target_time):
     """
     Filters a pandas DataFrame and returns a list of tuples containing satellite 
@@ -567,8 +595,8 @@ def lla_to_ecef(lat, lon, alt):
 
     n_lat = a / math.sqrt(1-e2*math.sin(math.radians(lat))**2)
 
-    x = (n_lat + alt) * math.cos(math.radians(lat) * math.cos(math.radians(lon)))
-    y = (n_lat + alt) * math.cos(math.radians(lat) * math.sin(math.radians(lon)))
+    x = (n_lat + alt) * math.cos(math.radians(lat)) * math.cos(math.radians(lon))
+    y = (n_lat + alt) * math.cos(math.radians(lat)) * math.sin(math.radians(lon))
     z = ((1-e2)*n_lat+alt) * math.sin(math.radians(lat))
 
     return x, y, z
@@ -732,3 +760,68 @@ def calculate_beams_grid(center_lat, center_lon, beam_size_km, num_beams):
     alts = np.zeros_like(lats, dtype=np.float64)
 
     return list(zip(lats, lons, alts))
+    
+def compute_shannon(distance_m, parameters):
+    # Unpack parameters
+    eirp_ue = parameters['eirp_ue']
+    gt_sat = parameters['gt_sat']
+    eirp_sat = parameters['eirp_sat']
+    gt_ue = parameters['gt_ue']
+    bw_dl = parameters['bw_dl']
+    bw_ul = parameters['bw_ul']
+    freq_dl = parameters['freq_dl']
+    freq_ul = parameters['freq_ul']
+    dl_db_headroom = parameters['dl_db_headroom']
+    ul_db_headroom = parameters['ul_db_headroom']
+
+    c = 299792458 
+    path_loss_dl_db = 20 * math.log10(distance_m) + 20 * math.log10(freq_dl) + 20 * math.log10(4 * math.pi / c)
+    path_loss_ul_db = 20 * math.log10(distance_m) + 20 * math.log10(freq_ul) + 20 * math.log10(4 * math.pi / c)
+
+    # print(f"distance: {distance_m}m, dl pathloss: {path_loss_dl_db}dB, ul pathloss: {path_loss_ul_db}dB.")
+
+    # Calculate received power in dBm
+    received_power_dl_dbm = eirp_sat + gt_ue - path_loss_dl_db - dl_db_headroom
+    received_power_ul_dbm = eirp_ue + gt_sat - path_loss_ul_db - ul_db_headroom
+    # print(f"received_power_dl = {received_power_dl_dbm} dBm, received_power_ul = {received_power_ul_dbm} dBm.")
+
+    snr_dl_db = received_power_dl_dbm + 198.6 - 10 * math.log10(bw_dl)
+    snr_ul_db = received_power_ul_dbm + 198.6 - 10 * math.log10(bw_ul)
+    # print(f"snr_dl = {snr_dl_db} dB, snr_ul = {snr_ul_db} dB.")
+
+    snr_dl_linear = 10 ** (snr_dl_db / 10)
+    snr_ul_linear = 10 ** (snr_ul_db / 10)
+
+    dl_thr_mbps = round(bw_dl * math.log2(1 + snr_dl_linear) / 1e6, 4)
+    ul_thr_mbps = round(bw_ul * math.log2(1 + snr_ul_linear) / 1e6, 4)
+    # print(f"Estimated DL Throughput: {dl_thr_mbps} Mbps, Estimated UL Throughput: {ul_thr_mbps} Mbps.")
+    return dl_thr_mbps, ul_thr_mbps
+
+def get_max_beam_throughput(frame, target_time,satellite_name, mini_cluster_position):
+    mini_cluster_lat, mini_cluster_lon, _ = mini_cluster_position
+    dl_total_throughput, ul_total_throughput = 0, 0
+    if isinstance(target_time, datetime):
+        target_time_str = target_time.strftime("%Y-%m-%d %H:%M:%S")
+    else:
+        target_time_str = str(target_time)
+    
+    try:
+        matched_satellite = frame[frame['time'].astype(str) == target_time_str]
+        matched_satellite = matched_satellite[matched_satellite['sat_name'].astype(str) == satellite_name]
+        sat_lat = float(matched_satellite['sat_lat'].iloc[0])
+        sat_long = float(matched_satellite['sat_lon'].iloc[0])
+        sat_alt_m = float(matched_satellite['sat_height'].iloc[0])
+
+        sat_x, sat_y, sat_z = lla_to_ecef(sat_lat, sat_long, sat_alt_m)
+        ue_x, ue_y, ue_z = lla_to_ecef(mini_cluster_lat, mini_cluster_lon, 0)
+        distance_m = round(math.sqrt((sat_x - ue_x)**2 + (sat_y - ue_y)**2 + (sat_z - ue_z)**2), 2)
+        
+        dl_total_throughput, ul_total_throughput = compute_shannon(distance_m, sc9_parameters)
+
+    except KeyError as e:
+        print(f"Error: Missing expected column in DataFrame - {e}")
+    except ValueError as e:
+        print(f"Error: Data format issue (e.g., empty or non-numeric values) - {e}")
+        
+    return dl_total_throughput, ul_total_throughput
+
