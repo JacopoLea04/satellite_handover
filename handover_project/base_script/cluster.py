@@ -258,4 +258,4 @@ class Cluster:
                         "dl_thr": dl_ue_throughput,
                         "ul_thr": ul_ue_throughput
                     }
-            ue.thr_tracker.append(thr_info)
+                ue.thr_tracker.append(thr_info)
