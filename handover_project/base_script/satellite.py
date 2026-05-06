@@ -135,19 +135,6 @@ class Satellite:
             self.connected_ues[index] -= 1
         return self.connected_ues
 
-
-
-
-
-
-
-
-
-
-
-# ========================= TO FIX =========================
-    
-"""
     def get_position(self, time):
         ts = load.timescale()
         t = ts.utc(time.year, time.month, time.day, time.hour, time.minute, time.second)
@@ -161,6 +148,12 @@ class Satellite:
         height = subpoint.elevation.m
 
         return latitude, longitude, height
+
+
+# ========================= TO FIX =========================
+    
+"""
+
     
 
     def get_rate(self, frame, time):
