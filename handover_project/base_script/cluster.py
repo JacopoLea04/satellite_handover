@@ -167,8 +167,8 @@ class Cluster:
         for mini_cluster in self.list_beams:
             for ue in mini_cluster.list_ues:
                 curr_sat, curr_beam_index = ue.get_connection_info()
-                intra_handover = False
-                inter_handover = False
+                ue.intra_handover_flag = False
+                ue.inter_handover_flag = False
                 next_sat = None
 
                 # ============== Detect the type of required handover (if needed) ==============
@@ -180,22 +180,22 @@ class Cluster:
                     index = next((i for i, (obj, *_) in enumerate(visible_sats_for_each_minicluster[mini_cluster.index]) if obj[0] == curr_sat.name), -1)
                     
                 if (index == -1): # the current satellite is not visible anymore --> inter handover
-                    inter_handover = True
+                    ue.inter_handover_flag = True
                     snr = None # TODO for future implementation
                 elif (curr_beam_index != visible_sats_for_each_minicluster[mini_cluster.index][index][1]): # the current satellite is still visible --> check if intra handover is needed
-                    intra_handover = True
+                    ue.intra_handover_flag = True
                 # else: # the current satellite is still visible and the beam is the same --> check if handover is needed based on other conditions (e.g., SNR)
                     # TODO
                     #print("No handover needed based on visibility, check other conditions (e.g., SNR)")
 
                 # ============== Performe the handover (if selected) ==============
                 
-                if(intra_handover): # handover to a new visible beam of the same satellite
+                if(ue.intra_handover_flag): # handover to a new visible beam of the same satellite
                     next_sat = curr_sat
                     next_beam_index = visible_sats_for_each_minicluster[mini_cluster.index][index][1]
                     ue.intra_handover(time, next_sat, next_beam_index)
 
-                elif(inter_handover): # handover to a new beam of a new satellite
+                elif(ue.inter_handover_flag): # handover to a new beam of a new satellite
 
                     # possible satellites beams towards which the ue could handover
                     choices = len(visible_sats_for_each_minicluster[mini_cluster.index])
@@ -219,45 +219,49 @@ class Cluster:
 
                     # handover to the selected sat (if no one, go out of service)
                     ue.inter_handover(time, next_sat, next_beam_index)
+        self.save_instant_throughput(time)
 
-
-                    
-   
-# ========================= TO FIX =========================
-
-"""
-    def save_instant_thr(self, time, service_sats):
-
-        for ue in self.list_ues:
-            # data collection
-            serv_sat = ue.connected_to
-            max_dl_thr, max_ul_thr = utils.get_max_thr(self.frame, serv_sat.name, time)
-            connected_users = serv_sat.connected_ues
-            ho_duration_ms = 0
-            if(ue.ho_flag):
-                ho_duration_ms = ue.ho_duration
-
-            # instant throughput computation
-            temp_dl_throughput = max_dl_thr / connected_users
-            temp_ul_throughput = max_ul_thr / connected_users
-            if(ho_duration_ms >= 1000):
-                temp_dl_throughput = 0
-                temp_ul_throughput = 0
-                ho_duration_ms -= 1000
-            elif(ho_duration_ms > 0):
-                temp_dl_throughput = temp_dl_throughput * (1 - ho_duration_ms/1000)
-                temp_ul_throughput = temp_ul_throughput * (1 - ho_duration_ms/1000)
-
-            thr_info = {
-                        "time": time,
+    def save_instant_throughput(self, target_time):
+        for mini_cluster in self.list_beams:
+            for ue in mini_cluster.list_ues:
+                serving_satellite, serving_beam_index = ue.get_connection_info()
+                if(serving_satellite is None or serving_beam_index is None):
+                    thr_info = {
+                        "time": target_time,
                         "ue.id": ue.id,
-                        "sat.id": serv_sat.name,
+                        "sat.id": None,
+                        "max_dl_thr": 0,
+                        "max_ul_thr": 0,
+                        "connected_users": 1,
+                        "ho_duration": 0,
+                        "dl_thr": 0,
+                        "ul_thr": 0
+                    }
+                    ue.thr_tracker.append(thr_info)
+                    continue
+                max_dl_thr, max_ul_thr = utils.get_max_beam_throughput(self.frame, target_time, serving_satellite.name, mini_cluster.position)
+                connected_users = serving_satellite.connected_ues[serving_beam_index]
+                # instant throughput computation
+                dl_ue_throughput = max_dl_thr / connected_users
+                ul_ue_throughput = max_ul_thr / connected_users
+                ho_duration_ms = ue.remaining_handover_execution_time
+                if(ue.remaining_handover_execution_time >= 1000):
+                    dl_ue_throughput = 0
+                    ul_ue_throughput = 0
+                    ue.remaining_handover_execution_time -= 1000
+                elif(ue.remaining_handover_execution_time > 0):
+                    dl_ue_throughput = dl_ue_throughput * (1 - ue.remaining_handover_execution_time/1000)
+                    ul_ue_throughput = ul_ue_throughput * (1 - ue.remaining_handover_execution_time/1000)
+                    ue.remaining_handover_execution_time = 0
+                thr_info = {
+                        "time": target_time,
+                        "ue.id": ue.id,
+                        "sat.id": serving_satellite.name,
                         "max_dl_thr": max_dl_thr,
                         "max_ul_thr": max_ul_thr,
                         "connected_users": connected_users,
                         "ho_duration": ho_duration_ms,
-                        "dl_thr": temp_dl_throughput,
-                        "ul_thr": temp_ul_throughput
+                        "dl_thr": dl_ue_throughput,
+                        "ul_thr": ul_ue_throughput
                     }
-            ue.thr_tracker.append(thr_info)
-"""
+                ue.thr_tracker.append(thr_info)
