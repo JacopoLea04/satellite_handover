@@ -797,7 +797,7 @@ def compute_shannon(distance_m, parameters):
     # print(f"Estimated DL Throughput: {dl_thr_mbps} Mbps, Estimated UL Throughput: {ul_thr_mbps} Mbps.")
     return dl_thr_mbps, ul_thr_mbps
 
-def get_max_beam_throughput(frame, target_time,satellite_name, mini_cluster_position):
+def get_max_beam_throughput(frame, target_time,satellite_name, mini_cluster_position, scenario):
     mini_cluster_lat, mini_cluster_lon, _ = mini_cluster_position
     dl_total_throughput, ul_total_throughput = 0, 0
     if isinstance(target_time, datetime):
@@ -816,7 +816,7 @@ def get_max_beam_throughput(frame, target_time,satellite_name, mini_cluster_posi
         ue_x, ue_y, ue_z = lla_to_ecef(mini_cluster_lat, mini_cluster_lon, 0)
         distance_m = round(math.sqrt((sat_x - ue_x)**2 + (sat_y - ue_y)**2 + (sat_z - ue_z)**2), 2)
         
-        dl_total_throughput, ul_total_throughput = compute_shannon(distance_m, sc9_parameters)
+        dl_total_throughput, ul_total_throughput = compute_shannon(distance_m, scenario)
 
     except KeyError as e:
         print(f"Error: Missing expected column in DataFrame - {e}")

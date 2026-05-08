@@ -6,8 +6,8 @@ import os
 import shutil
 
 from cluster import Cluster
-from ue import Ue
-from satellite import Satellite
+import utils
+
 
 # initial configuration
 df_name_1 = "250km_sc9_padova.csv"
@@ -22,6 +22,8 @@ mu_intra = 1 * 1e-3 # default is 1/(1*1e-3)
 num_ues = 100
 num_beams = 25
 beam_size_km = 50
+dl_threshold = 15 # dB
+ul_threshold = 7 # dB
 
 ########### ho_condition ###########
 # "SNR": if the SNR goes under a certain threshold then handover to a new satellite
@@ -43,7 +45,7 @@ servers = args.servers
 num_ues = args.num_ues
 
 # (name, position, num_ues, satellites_frame, threshold_snr, satellite servers, satellite mu)
-cluster1 = Cluster("Cluster1", (45.40996, 11.89261, 0), num_ues, beam_size_km, num_beams, data_frame_1, 7, servers, mu_inter, mu_intra)
+cluster1 = Cluster("Cluster1", (45.40996, 11.89261, 0), num_ues, beam_size_km, num_beams, data_frame_1, 7, servers, mu_inter, mu_intra, utils.sc9_parameters)
 clusters = [cluster1] 
 
 # (# year, month, day, hour, minute, second)

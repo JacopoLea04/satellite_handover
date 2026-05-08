@@ -8,7 +8,7 @@ from satellite import Satellite
 import numpy as np
 
 class Cluster:
-    def __init__(self, name, position, num_ues, beam_size_km, num_beams, satellites_frame, threshold_snr, servers, mu_inter, mu_intra):
+    def __init__(self, name, position, num_ues, beam_size_km, num_beams, satellites_frame, threshold_snr, servers, mu_inter, mu_intra, scenario):
         self.name = name
         self.position = position
         self.num_ues = num_ues
@@ -19,6 +19,7 @@ class Cluster:
         self.sat_servers = servers
         self.sat_mu_inter = mu_inter
         self.sat_mu_intra = mu_intra
+        self.scenario = scenario
 
         # beams computation
         self.positions = self.calculate_beams_grid(self.position[0], self.position[1], self.beam_size_km, self.num_beams)
@@ -109,8 +110,6 @@ class Cluster:
 
     def monitor(self, time, service_sats, ho_condition, sat_selection_condition):
         """
-            TODO: the handover condition and the satellite selection condition should be implemented in this function.\
-            
             This function handles the monitoring of the current connections of the UEs and the handover process if needed. 
             It should be called at each time step of the simulation. For each mini-cluster, it checks the visibility of the satellites
             and determines if a handover is needed for each UE. If a handover is needed, it selects the target satellite randomly. 
@@ -239,7 +238,7 @@ class Cluster:
                     }
                     ue.thr_tracker.append(thr_info)
                     continue
-                max_dl_thr, max_ul_thr = utils.get_max_beam_throughput(self.frame, target_time, serving_satellite.name, mini_cluster.position)
+                max_dl_thr, max_ul_thr = utils.get_max_beam_throughput(self.frame, target_time, serving_satellite.name, mini_cluster.position, self.scenario)
                 connected_users = serving_satellite.connected_ues[serving_beam_index]
                 # instant throughput computation
                 dl_ue_throughput = max_dl_thr / connected_users
