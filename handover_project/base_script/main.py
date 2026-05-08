@@ -70,7 +70,7 @@ with tqdm(total=total_iterations, desc="Simulating") as pbar:
     # Monitor the SNR of the current connections and apply conditional handover if needed
     while time < end_sim_time:
 
-        cluster1.monitor(time, service_sats, "SNR", "AVL_THR")
+        cluster1.monitor(time, service_sats, ("SNR", dl_threshold, ul_threshold), "AVL_THR")
         
         # Display the current time on the right side of the progress bar instead of printing it
         pbar.set_postfix(time=time.strftime("%H:%M:%S"))

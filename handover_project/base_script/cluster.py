@@ -180,12 +180,16 @@ class Cluster:
                     
                 if (index == -1): # the current satellite is not visible anymore --> inter handover
                     ue.inter_handover_flag = True
-                    snr = None # TODO for future implementation
                 elif (curr_beam_index != visible_sats_for_each_minicluster[mini_cluster.index][index][1]): # the current satellite is still visible --> check if intra handover is needed
                     ue.intra_handover_flag = True
-                # else: # the current satellite is still visible and the beam is the same --> check if handover is needed based on other conditions (e.g., SNR)
-                    # TODO
-                    #print("No handover needed based on visibility, check other conditions (e.g., SNR)")
+                else: # Other possible handover trigger events
+                    event = ho_condition[0]
+                    if(event == "SNR"):
+                        dl_threshold, ul_threshold = ho_condition[1], ho_condition[2]
+                        snr_dl, snr_ul = utils.get_snr(self.frame, round_time, curr_sat.name, mini_cluster.position, self.scenario)
+                        if(snr_dl < dl_threshold or snr_ul < ul_threshold):
+                            ue.inter_handover_flag = True
+
 
                 # ============== Performe the handover (if selected) ==============
                 
