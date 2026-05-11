@@ -39,12 +39,12 @@ save_plot_values = False
 
 output_folder = "plots"
 period = '20 min'
-num_ues_label = 100
+num_ues_label = 1
 simTimeStart = datetime(2026, 2, 19, 0, 0, 0) 
 simTimeEnd = datetime(2026, 2, 19, 0, 20, 0) 
 time_step = timedelta(seconds=1)
-N = 5 # to select only a subset of objects
-num_ues_to_plot = 2
+N = 1 # to select only a subset of objects
+num_ues_to_plot = 1
 beam_size_km = 100
 num_beams = 25
 
@@ -267,6 +267,7 @@ if(average_handover_rate):
     os.makedirs(output_folder, exist_ok=True)
     combined_file_path = os.path.join(output_folder, "2-handover_pdf.png")
     fig.savefig(combined_file_path, dpi=300, bbox_inches='tight')
+    plt.close(fig)
     print("   Completed!\n")
 
         
@@ -376,6 +377,7 @@ if(average_handover_duration):
     os.makedirs(output_folder, exist_ok=True)
     combined_file_path = os.path.join(output_folder, "3-handover_duration.png")
     fig.savefig(combined_file_path, dpi=300, bbox_inches='tight')
+    plt.close(fig)
     print("   Completed!\n")
 
 
@@ -516,6 +518,7 @@ if(average_service_time):
     os.makedirs(output_folder, exist_ok=True)
     combined_file_path = os.path.join(output_folder, "4-service_time.png")
     fig.savefig(combined_file_path, dpi=300, bbox_inches='tight')
+    plt.close(fig)
     print("   Completed!\n")
 
 # ========================================================================================================= # 
@@ -611,6 +614,7 @@ if(ho_handled):
     os.makedirs(output_folder, exist_ok=True)
     combined_file_path = os.path.join(output_folder, "5-ho_per_sat.png")
     fig.savefig(combined_file_path, dpi=300, bbox_inches='tight')
+    plt.close(fig)
     print("   Completed!\n")
 
 
@@ -707,6 +711,7 @@ if(out_of_service):
     os.makedirs(output_folder, exist_ok=True)
     combined_file_path = os.path.join(output_folder, "6-out_of_service_time.png")
     fig.savefig(combined_file_path, dpi=300, bbox_inches='tight')
+    plt.close(fig)
     print("   Completed!\n")
     
     
@@ -761,7 +766,6 @@ if(get_throuthput_ho_v2):
     os.makedirs(output_folder, exist_ok=True)
     combined_file_path = os.path.join(output_folder, "7.3.2-DL_throughput_ho.png")
     fig.savefig(combined_file_path, dpi=300, bbox_inches='tight')
-    plt.show()
     plt.close()
     print("   Completed!\n")
 
