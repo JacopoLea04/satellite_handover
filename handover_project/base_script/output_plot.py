@@ -39,7 +39,7 @@ save_plot_values = False
 
 output_folder = "plots"
 period = '20 min'
-num_ues_label = 1
+num_ues_label = 100
 simTimeStart = datetime(2026, 2, 19, 0, 0, 0) 
 simTimeEnd = datetime(2026, 2, 19, 0, 20, 0) 
 time_step = timedelta(seconds=1)
