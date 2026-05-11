@@ -189,6 +189,11 @@ class Cluster:
                         snr_dl, snr_ul = utils.get_snr(self.frame, round_time, curr_sat.name, mini_cluster.position, self.scenario)
                         if(snr_dl < dl_threshold or snr_ul < ul_threshold):
                             ue.inter_handover_flag = True
+                    elif(event == "ELEVATION"):
+                        elev_threshold = ho_condition[1]
+                        sat_elev = utils.get_elevation(self.frame, round_time, curr_sat.name, mini_cluster.position)
+                        if(sat_elev < elev_threshold):
+                            ue.inter_handover_flag = True
 
 
                 # ============== Performe the handover (if selected) ==============

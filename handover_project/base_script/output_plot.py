@@ -29,7 +29,7 @@ out_of_service = True
 
 # ============ TO FIX ==============
 # 7.3.2 throughput considering HO outage time 
-get_throuthput_ho_v2 = False
+get_throuthput_ho_v2 = True
 # 9. Number of ping-pong handovers
 ping_pong_handovers = False
 # 10. save the results into a csv
@@ -45,11 +45,11 @@ simTimeEnd = datetime(2026, 2, 19, 0, 20, 0)
 time_step = timedelta(seconds=1)
 N = 5 # to select only a subset of objects
 num_ues_to_plot = 2
-beam_size_km = 50
+beam_size_km = 100
 num_beams = 25
 
 # df_name = "75km_satellite_df.csv"
-df_padova = "250km_sc9_padova.csv"
+df_padova = "100km_5x5_sc9_padova.csv"
 padova_lat, padova_lon = 45.40996, 11.89261
 dfnames = [df_padova] 
 fnames = ["padova"]

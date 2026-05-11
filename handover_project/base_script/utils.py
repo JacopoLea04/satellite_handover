@@ -826,6 +826,44 @@ def get_max_beam_throughput(frame, target_time,satellite_name, mini_cluster_posi
     return dl_total_throughput, ul_total_throughput
 
 
+def get_elevation(frame, target_time, satellite_name, mini_cluster_position):
+    """
+    Compute the satellite elevation given the minicluster and sat positions.
+    Args:
+        frame: the dataframe containing the constellation information over time
+        satellite_name: name of the satellite we want to compute the snr
+        mini_cluster_position: location of the ue we want to compute the snr
+    Returns:
+        sat_elev: satellite elevation angle in degrees
+    """
+    mini_cluster_lat, mini_cluster_lon, _ = mini_cluster_position
+    sat_elev = 0
+    if isinstance(target_time, datetime):
+        target_time_str = target_time.strftime("%Y-%m-%d %H:%M:%S")
+    else:
+        target_time_str = str(target_time)
+    
+    try:
+        matched_satellite = frame[frame['time'].astype(str) == target_time_str]
+        matched_satellite = matched_satellite[matched_satellite['sat_name'].astype(str) == satellite_name]
+        sat_lat = float(matched_satellite['sat_lat'].iloc[0])
+        sat_long = float(matched_satellite['sat_lon'].iloc[0])
+        sat_alt_m = float(matched_satellite['sat_height'].iloc[0])
+
+        sat_elev = ChannelParameters.elevation_angle_deg(
+                mini_cluster_lat, mini_cluster_lon,
+                sat_lat, sat_long,
+                sat_alt_m
+            )
+        
+    except KeyError as e:
+        print(f"Error: Missing expected column in DataFrame - {e}")
+    except ValueError as e:
+        print(f"Error: Data format issue (e.g., empty or non-numeric values) - {e}")
+        
+    return sat_elev
+
+
 def get_snr(frame, target_time, satellite_name, mini_cluster_position, parameters):
     """
     Compute the dl and ul snr given the minicluster and sat positions.

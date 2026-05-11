@@ -10,7 +10,7 @@ import utils
 
 
 # initial configuration
-df_name_1 = "250km_sc9_padova.csv"
+df_name_1 = "100km_5x5_sc9_padova.csv"
 data_frame_1 = pd.read_csv(df_name_1)
 
 
@@ -21,9 +21,10 @@ mu_inter = 30 * 1e-3 # default is 1/(30*1e-3)
 mu_intra = 1 * 1e-3 # default is 1/(1*1e-3)
 num_ues = 100
 num_beams = 25
-beam_size_km = 50
+beam_size_km = 100
 dl_threshold = 15 # dB
 ul_threshold = 7 # dB
+elev_threshold = 50 # degrees
 
 ########### ho_condition ###########
 # "SNR": if the SNR goes under a certain threshold then handover to a new satellite
@@ -70,7 +71,7 @@ with tqdm(total=total_iterations, desc="Simulating") as pbar:
     # Monitor the SNR of the current connections and apply conditional handover if needed
     while time < end_sim_time:
 
-        cluster1.monitor(time, service_sats, ("SNR", dl_threshold, ul_threshold), "AVL_THR")
+        cluster1.monitor(time, service_sats, ("ELEVATION", elev_threshold), "AVL_THR")
         
         # Display the current time on the right side of the progress bar instead of printing it
         pbar.set_postfix(time=time.strftime("%H:%M:%S"))
