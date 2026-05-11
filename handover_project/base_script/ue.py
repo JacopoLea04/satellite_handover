@@ -11,6 +11,7 @@ class Ue:
         self.connected_to = None
         self.connected_to_beam = None
         self.handover_tracker = []
+        self.time_to_next_handover = 0 # [s] time to next handover in case of fixed timer handover condition
         self.intra_handover_flag = False # save if the ue has performed ho in the current time instant
         self.inter_handover_flag = False
         self.remaining_handover_execution_time = 0 # [ms] save the ho duration at this time instant if the ue has performed ho
