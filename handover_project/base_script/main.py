@@ -4,26 +4,33 @@ from tqdm import tqdm
 import argparse
 import os 
 import shutil
+import re
 
 from cluster import Cluster
 import utils
 
 
 # initial configuration
-df_name_1 = "250km_sc9_padova.csv"
-data_frame_1 = pd.read_csv(df_name_1)
+df_name_1 = "100km_25beams_sc9_padova.csv"
 
-
-# satellites parameters
 simTime = timedelta(minutes=20)
-servers = 1
-mu_inter = 30 * 1e-3 # default is 1/(30*1e-3)
-mu_intra = 1 * 1e-3 # default is 1/(1*1e-3)
 num_ues = 100
-num_beams = 25
-beam_size_km = 50
+mu_inter = 30 * 1e-3
+mu_intra = 1 * 1e-3 
+servers = 1
 dl_threshold = 15 # dB
 ul_threshold = 7 # dB
+elev_threshold = 50 # degrees
+scenario = utils.sc9_parameters
+
+
+# retrive parameters
+data_frame_1 = pd.read_csv(df_name_1)
+numbers = re.findall(r'\d+', df_name_1)
+beam_size_km = int(numbers[0])
+num_beams = int(numbers[1])
+
+
 
 ########### ho_condition ###########
 # "SNR": if the SNR goes under a certain threshold then handover to a new satellite
@@ -45,7 +52,8 @@ args= parser.parse_args()
 servers = args.servers
 num_ues = args.num_ues
 
-cluster1 = Cluster("Cluster1", (45.40996, 11.89261, 0), num_ues, beam_size_km, num_beams, data_frame_1, servers, mu_inter, mu_intra, utils.sc9_parameters)
+# (name, position, num_ues, satellites_frame, threshold_snr, satellite servers, satellite mu)
+cluster1 = Cluster("Cluster1", (45.40996, 11.89261, 0), num_ues, beam_size_km, num_beams, data_frame_1, 7, servers, mu_inter, mu_intra, scenario)
 clusters = [cluster1] 
 
 # (# year, month, day, hour, minute, second)

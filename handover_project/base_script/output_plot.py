@@ -9,6 +9,7 @@ from scipy.stats import gaussian_kde
 import seaborn as sns
 import numpy as np
 from pathlib import Path
+import re
 
 pd.options.mode.chained_assignment = None  # default='warn'
 
@@ -26,35 +27,43 @@ average_service_time = True
 ho_handled = True
 # 6. Average number and duration of out of services
 out_of_service = True
-
-# ============ TO FIX ==============
 # 7.3.2 throughput considering HO outage time 
 get_throuthput_ho_v2 = True
+
+
+# ============ TO FIX ==============
 # 9. Number of ping-pong handovers
 ping_pong_handovers = False
 # 10. save the results into a csv
 save_plot_values = False
 
 
+# ================================================================================================
 
+# dataframes parameters
+df_name = "100km_25beams_sc9_padova.csv"
+padova_lat, padova_lon = 45.40996, 11.89261
+dfnames = [df_name] 
+fnames = ["padova"]
+
+# simulation parameters
 output_folder = "plots"
 period = '20 min'
-num_ues_label = 1
+num_ues_label = 100
 simTimeStart = datetime(2026, 2, 19, 0, 0, 0) 
 simTimeEnd = datetime(2026, 2, 19, 0, 20, 0) 
 time_step = timedelta(seconds=1)
-N = 1 # to select only a subset of objects
 num_ues_to_plot = 1
-beam_size_km = 50
-num_beams = 25
 
-# df_name = "75km_satellite_df.csv"
-df_padova = "250km_sc9_padova.csv"
-padova_lat, padova_lon = 45.40996, 11.89261
-dfnames = [df_padova] 
-fnames = ["padova"]
 
+# retrive parameterts
+numbers = re.findall(r'\d+', df_name)
+beam_size_km = int(numbers[0])
+num_beams = int(numbers[1])
 padova_positions = utils.calculate_beams_grid(padova_lat, padova_lon, beam_size_km, num_beams)
+
+# ================================================================================================
+
 
 colors1 = ['skyblue', 'lightcoral', 'palegreen', 'mocassin', 'plum', 'tan', 'lightpink', 'lightgray', 'darkkhaki', 'paleturquoise']
 colors2 = ['blue', 'red', 'green', 'orange', 'purple', 'brown', 'pink', 'gray', 'olive', 'cyan']

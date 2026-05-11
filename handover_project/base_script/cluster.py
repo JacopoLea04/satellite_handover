@@ -193,6 +193,11 @@ class Cluster:
                         ue.inter_handover_flag = True
                     else:
                         ue.time_to_next_handover -= 1 # decrease the time to next handover by 1 second
+                elif(event == "ELEVATION"):
+                        elev_threshold = ho_condition[1]
+                        sat_elev = utils.get_elevation(self.frame, round_time, curr_sat.name, mini_cluster.position)
+                        if(sat_elev < elev_threshold):
+                            ue.inter_handover_flag = True
 
 
                 # ============== Performe the handover (if selected) ==============
