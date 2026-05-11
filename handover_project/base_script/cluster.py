@@ -61,7 +61,7 @@ class Cluster:
 
     # only at the beginning of the simulation, we attech every UEs of all the mini-cluster to a beam 
     # of a random satellite within the visibility.
-    def initial_connection_phase(self, time, service_sats):
+    def initial_connection_phase(self, time, service_sats, handover_timer = 0):
         """
         This function handles the initial connection phase for the UEs in the mini-cluster.
         It should connect each UE to a random visible satellite. If no available satellite is visible, the UE will be 
@@ -99,9 +99,9 @@ class Cluster:
                     idx_cluster = visible_clusters_indices[ii][jj]
                     idx_sat_beam = satellite_beam_indices[ii][jj]
                     visible_sats_for_each_minicluster[idx_cluster].append((sat, idx_sat_beam))
-
+        
         for index, mini_cluster in enumerate(self.list_beams):
-            mini_cluster.initial_connection_phase(visible_sats_for_each_minicluster[index], time, service_sats)
+            mini_cluster.initial_connection_phase(visible_sats_for_each_minicluster[index], time, service_sats, handover_timer)
                 
         return service_sats
     
@@ -168,6 +168,7 @@ class Cluster:
                 ue.intra_handover_flag = False
                 ue.inter_handover_flag = False
                 next_sat = None
+                event = ho_condition[0]
 
                 # ============== Detect the type of required handover (if needed) ==============
 
@@ -181,23 +182,21 @@ class Cluster:
                     ue.inter_handover_flag = True
                 elif (curr_beam_index != visible_sats_for_each_minicluster[mini_cluster.index][index][1]): # the current satellite is still visible --> check if intra handover is needed
                     ue.intra_handover_flag = True
-                else: # Other possible handover trigger events
-                    event = ho_condition[0]
-                    if(event == "SNR"):
-                        dl_threshold, ul_threshold = ho_condition[1], ho_condition[2]
-                        snr_dl, snr_ul = utils.get_snr(self.frame, round_time, curr_sat.name, mini_cluster.position, self.scenario)
-                        if(snr_dl < dl_threshold or snr_ul < ul_threshold):
-                            ue.inter_handover_flag = True
+
+                if(event == "SNR"):
+                    dl_threshold, ul_threshold = ho_condition[1], ho_condition[2]
+                    snr_dl, snr_ul = utils.get_snr(self.frame, round_time, curr_sat.name, mini_cluster.position, self.scenario)
+                    if(snr_dl < dl_threshold or snr_ul < ul_threshold):
+                        ue.inter_handover_flag = True
+                elif(event == "TIMER"):
+                    if(ue.time_to_next_handover <= 0):
+                        ue.inter_handover_flag = True
+                    else:
+                        ue.time_to_next_handover -= 1 # decrease the time to next handover by 1 second
 
 
                 # ============== Performe the handover (if selected) ==============
-                
-                if(ue.intra_handover_flag): # handover to a new visible beam of the same satellite
-                    next_sat = curr_sat
-                    next_beam_index = visible_sats_for_each_minicluster[mini_cluster.index][index][1]
-                    ue.intra_handover(time, next_sat, next_beam_index)
-
-                elif(ue.inter_handover_flag): # handover to a new beam of a new satellite
+                if(ue.inter_handover_flag): # handover to a new beam of a new satellite
 
                     # possible satellites beams towards which the ue could handover
                     choices = len(visible_sats_for_each_minicluster[mini_cluster.index])
@@ -205,6 +204,7 @@ class Cluster:
                     if(choices == 0):
                         next_sat = None
                         next_beam_index = None
+                        ue.time_to_next_handover = 0 # reset the time to next handover in case of fixed timer handover condition
                     # if there is at least one, select a random one among them and handover
                     else:
                         # select a random satellite among the visible ones and handover to it
@@ -218,9 +218,17 @@ class Cluster:
                             sat = Satellite(selected_sat_name, self.sat_servers, self.sat_mu_inter, self.sat_mu_intra, self.num_beams)
                             service_sats[selected_sat_name] = sat
                         next_sat = service_sats[selected_sat_name]
-
+                        if(ho_condition[0] == "TIMER"):
+                            ue.time_to_next_handover = ho_condition[1] -1 # reset the time to next handover in case of fixed timer handover condition
                     # handover to the selected sat (if no one, go out of service)
                     ue.inter_handover(time, next_sat, next_beam_index)
+                
+                elif(ue.intra_handover_flag): # handover to a new visible beam of the same satellite
+                    next_sat = curr_sat
+                    next_beam_index = visible_sats_for_each_minicluster[mini_cluster.index][index][1]
+                    ue.intra_handover(time, next_sat, next_beam_index)
+
+                
         self.save_instant_throughput(time)
 
     def save_instant_throughput(self, target_time):
