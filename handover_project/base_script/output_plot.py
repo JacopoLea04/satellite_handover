@@ -428,7 +428,7 @@ if(average_service_time):
                 # case B: the UE is connected to a satellite
                 else:
                     # did the satellite change? (initial connection or inter_ho)
-                    if curr_sat != dest_sat:
+                    if (row.event_type == 'inter_ho' or row.event_type == 'init_con'):
                         # Close out the old tracking periods if they exist
                         if curr_sat is not None:
                             cluster_sat_durations.append((t - sat_start_time).total_seconds())
