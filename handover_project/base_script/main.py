@@ -44,8 +44,7 @@ args= parser.parse_args()
 servers = args.servers
 num_ues = args.num_ues
 
-# (name, position, num_ues, satellites_frame, threshold_snr, satellite servers, satellite mu)
-cluster1 = Cluster("Cluster1", (45.40996, 11.89261, 0), num_ues, beam_size_km, num_beams, data_frame_1, 7, servers, mu_inter, mu_intra, utils.sc9_parameters)
+cluster1 = Cluster("Cluster1", (45.40996, 11.89261, 0), num_ues, beam_size_km, num_beams, data_frame_1, servers, mu_inter, mu_intra, utils.sc9_parameters)
 clusters = [cluster1] 
 
 # (# year, month, day, hour, minute, second)

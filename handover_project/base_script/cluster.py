@@ -8,14 +8,13 @@ from satellite import Satellite
 import numpy as np
 
 class Cluster:
-    def __init__(self, name, position, num_ues, beam_size_km, num_beams, satellites_frame, threshold_snr, servers, mu_inter, mu_intra, scenario):
+    def __init__(self, name, position, num_ues, beam_size_km, num_beams, satellites_frame, servers, mu_inter, mu_intra, scenario):
         self.name = name
         self.position = position
         self.num_ues = num_ues
         self.beam_size_km = beam_size_km
         self.num_beams = num_beams
         self.frame = satellites_frame
-        self.threshold = threshold_snr
         self.sat_servers = servers
         self.sat_mu_inter = mu_inter
         self.sat_mu_intra = mu_intra
