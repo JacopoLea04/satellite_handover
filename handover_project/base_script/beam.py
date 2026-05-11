@@ -18,7 +18,7 @@ class Beam:
         self.sat_mu_intra = sat_mu_intra
 
     
-    def initial_connection_phase(self, visible_sats, time, service_sats):
+    def initial_connection_phase(self, visible_sats, time, service_sats, handover_timer = 0):
         """
         Initial connection phase: each UE connects to a random satellite among the visible ones.
         """
@@ -27,6 +27,7 @@ class Beam:
             for ue in self.list_ues:
 
                 random_index = random.randint(0, len(visible_sats)-1)
+                ue.time_to_next_handover = random.randint(1, handover_timer) # set a random condition for the first handover timer
                 selected_sat = visible_sats[random_index][0]
                 selected_sat_beam = visible_sats[random_index][1]
                 selected_sat_name = selected_sat[0]
