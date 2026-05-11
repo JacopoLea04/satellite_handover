@@ -40,6 +40,7 @@ ul_threshold = 7 # dB
 parser = argparse.ArgumentParser(description="Satellite Simulation Script")
 parser.add_argument('--servers', type=int, default=servers, help='Number of servers')
 parser.add_argument('--num_ues', type=int, default=num_ues, help='Number of User Equipments')
+handover_timer = 10
 args= parser.parse_args()
 servers = args.servers
 num_ues = args.num_ues
@@ -54,7 +55,7 @@ end_sim_time = time + simTime
 # Initial connection phase: each ue connects to a random satellite
 service_sats = {}
 for cluster in clusters:    
-    cluster.initial_connection_phase(time, service_sats)
+    cluster.initial_connection_phase(time, service_sats, handover_timer)
 
 
 # increment the time by 100 ms
@@ -69,7 +70,7 @@ with tqdm(total=total_iterations, desc="Simulating") as pbar:
     # Monitor the SNR of the current connections and apply conditional handover if needed
     while time < end_sim_time:
 
-        cluster1.monitor(time, service_sats, ("SNR", dl_threshold, ul_threshold), "AVL_THR")
+        cluster1.monitor(time, service_sats, ("TIMER", handover_timer), "RANDOM")
         
         # Display the current time on the right side of the progress bar instead of printing it
         pbar.set_postfix(time=time.strftime("%H:%M:%S"))
