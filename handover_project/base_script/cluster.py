@@ -204,8 +204,6 @@ class Cluster:
                     sat_elev = utils.get_elevation(curr_time_df, round_time, curr_sat.name, mini_cluster.position)
                     if(sat_elev < elev_threshold):
                         ue.inter_handover_flag = True
-                else:
-                    print("NO VALID HANDOOVER CONDITION SELECTED!")
 
 
                 # ============== Performe the handover (if selected) ==============

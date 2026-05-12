@@ -21,19 +21,24 @@ mu_inter = 30 * 1e-3
 mu_intra = 1 * 1e-3 
 servers = 1
 scenario = utils.sc9_parameters
+handover_timer = 40
 
-
+####################################
 ########### ho_condition ###########
-# "(SNR, dl_threshold, ul_threshold)": if the SNR goes under certain thresholds then handover to a new satellite
-# "(ELEVATION, elev_threshold)": if the elevation angle goes under certain thresholds then handover to a new satellite
-# "VISIBILITY": standard approach, no input needed, handover when satellite goes out of visibility
+####################################
+# ('SNR', dl_threshold, ul_threshold): if the SNR goes under certain thresholds then handover to a new satellite
+# ('ELEVATION', elev_threshold): if the elevation angle goes under certain thresholds then handover to a new satellite
+# ('TIMER', handover_timer): if not already triggered, handover to a new satellite after handover_timer seconds
+# ('VISIBILITY)': standard approach, no input needed, handover when satellite goes out of visibility
+
+###############################################
 ########### sat_selection_condition ###########
+###############################################
 # "RANDOM": a random satellite within the ones in visibility
 # "MAX_ELEVATION": the satellite with the highest elevation angle from the current time instant
-
-# "AVL_THR": the satellite with the highest available throughput is selected as target satellite
-# "SNR_THR": the satellite with hightest product thr*snr is selected as target satellite
 # "MAX_VISIBILITY": the satellite with the longer visibility window from the current time instant
+
+# TODO "AVL_THR": the satellite with the highest available throughput is selected as target satellite
 
 
 
@@ -49,7 +54,6 @@ num_beams = int(numbers[1])
 parser = argparse.ArgumentParser(description="Satellite Simulation Script")
 parser.add_argument('--servers', type=int, default=servers, help='Number of servers')
 parser.add_argument('--num_ues', type=int, default=num_ues, help='Number of User Equipments')
-handover_timer = 40
 args= parser.parse_args()
 servers = args.servers
 num_ues = args.num_ues
