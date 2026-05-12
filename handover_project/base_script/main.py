@@ -26,10 +26,10 @@ handover_timer = 40
 ####################################
 ########### ho_condition ###########
 ####################################
-# ('SNR', dl_threshold, ul_threshold): if the SNR goes under certain thresholds then handover to a new satellite
-# ('ELEVATION', elev_threshold): if the elevation angle goes under certain thresholds then handover to a new satellite
-# ('TIMER', handover_timer): if not already triggered, handover to a new satellite after handover_timer seconds
-# ('VISIBILITY)': standard approach, no input needed, handover when satellite goes out of visibility
+# ("SNR", dl_threshold, ul_threshold): if the SNR goes under certain thresholds then handover to a new satellite
+# ("ELEVATION", elev_threshold): if the elevation angle goes under certain thresholds then handover to a new satellite
+# ("TIMER", handover_timer): if not already triggered, handover to a new satellite after handover_timer seconds
+# ("VISIBILITY"): standard approach, no input needed, handover when satellite goes out of visibility
 
 ###############################################
 ########### sat_selection_condition ###########
@@ -37,8 +37,7 @@ handover_timer = 40
 # "RANDOM": a random satellite within the ones in visibility
 # "MAX_ELEVATION": the satellite with the highest elevation angle from the current time instant
 # "MAX_VISIBILITY": the satellite with the longer visibility window from the current time instant
-
-# TODO "AVL_THR": the satellite with the highest available throughput is selected as target satellite
+# "AVL_THR": the satellite with the highest available throughput is selected as target satellite
 
 
 

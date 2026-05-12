@@ -237,6 +237,38 @@ class Cluster:
                         next_sat = service_sats[selected_sat_name]
                         if(ho_condition[0] == "TIMER"):
                             ue.time_to_next_handover = ho_condition[1] -1 # reset the time to next handover in case of fixed timer handover condition
+                    # if there is at least one, select the less busy satellite which could guarantee the higer thorughput
+                    elif(sat_selection_condition == "AVL_THR"):
+
+                        # order visible satellites according to their available throughput respect to the current mini-cluster considered
+                        for iii, xxx in enumerate(visible_sats_for_each_minicluster[mini_cluster.index]):
+                            sat_curr = xxx[0]
+                            sat_curr_name = sat_curr[0]
+                            beam_curr = xxx[1]
+                            num_connected_ues = 1
+
+                            # check if other UEs are already connected to the current evaluated satellite
+                            if sat_curr_name in service_sats:
+                                num_connected_ues += service_sats[sat_curr_name].connected_ues[beam_curr]
+                                
+                            max_dl_thr, max_ul_thr = utils.get_max_beam_throughput(self.frame, round_time, sat_curr_name, mini_cluster.position, self.scenario)
+                            thr_score = max_dl_thr / num_connected_ues
+
+                            # update the tupla with the 
+                            visible_sats_for_each_minicluster[mini_cluster.index][iii] = (sat_curr, beam_curr, thr_score)
+                        visible_sats_for_each_minicluster[mini_cluster.index] = sorted(visible_sats_for_each_minicluster[mini_cluster.index], key=lambda x: x[2], reverse=True)
+                        
+                        best_index = 0
+                        next_sat = visible_sats_for_each_minicluster[mini_cluster.index][best_index][0]
+                        next_beam_index = visible_sats_for_each_minicluster[mini_cluster.index][best_index][1]
+
+                        # is this satellite already configured?
+                        selected_sat_name = next_sat[0]
+                        if selected_sat_name not in service_sats:
+                            sat = Satellite(selected_sat_name, self.sat_servers, self.sat_mu_inter, self.sat_mu_intra, self.num_beams)
+                            service_sats[selected_sat_name] = sat
+                        next_sat = service_sats[selected_sat_name] 
+                    # handover to the selected sat (if no one, go out of service)
                     ue.inter_handover(time, next_sat, next_beam_index)
                 
                 elif(ue.intra_handover_flag): # handover to a new visible beam of the same satellite
