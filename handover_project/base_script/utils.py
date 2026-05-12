@@ -133,114 +133,6 @@ def get_max_elevation_satellite(visible_sats, fraction = 0.3, n_min=1):
     best_satellite =  visible_sats[:n_min][index]
     return best_satellite
 
-def get_best_satellite_v2(visible_sats, service_sats):
-
-    # fast lookup dictionary mapping {satellite_name: connected_ues}, better than the nested loop
-    # This loops through service_sats exactly once.
-    service_loads = {sat.name: sat.connected_ues for sat in service_sats}
-
-    def calculate_score(sat):
-        name = sat[0]
-        thr_dl = sat[8]
-        
-        # fast dictionary lookup: get the load if it's active, otherwise default to 0
-        connected_users = service_loads.get(name, 0)
-        
-        # calculate and return the metric
-        return thr_dl / (connected_users + 1)
-        
-    # find the best satellite
-    best_satellite = max(visible_sats, key=calculate_score)
-    
-    return best_satellite
-
-def get_best_satellite_by_dl_snr(satellites_list):
-    """
-    Takes a list of satellite tuples and returns the satellite 
-    with the highest Downlink SNR (snr_dl).
-    """
-    # Safety check: if the list is empty, return None to prevent errors
-    if not satellites_list:
-        print("Warning: The satellite list is empty.")
-        return None
-
-    # Find the tuple with the maximum value at index 6 (snr_dl)
-    best_satellite = max(satellites_list, key=lambda sat: sat[6])
-    
-    return best_satellite
-
-
-def get_best_satellite_by_available_dl_thr(satellites_list):
-    """
-    Takes a list of satellite tuples and returns the satellite 
-    that offers the highest potential Downlink Throughput per user.
-    """
-    # Safety check: if the list is empty, return None to prevent errors
-    if not satellites_list:
-        print("Warning: The satellite list is empty.")
-        return None
-
-    # Find the satellite that maximizes: thr_dl / (connected_users + 1)
-    # sat[8] is thr_dl, sat[10] is connected_users
-    best_satellite = max(
-        satellites_list, 
-        key=lambda sat: sat[8] / (sat[10] + 1)
-    )
-    
-    return best_satellite
-
-def compute_dl_snr(frame, satellite_name, time):
-    """
-    Looks up a specific satellite at a specific time in a DataFrame 
-    and returns its Downlink SNR (snr_dl).
-    """
-    # Format the time object to match the DataFrame string format
-    if isinstance(time, datetime):
-        time_str = time.strftime("%Y-%m-%d %H:%M:%S")
-    else:
-        time_str = str(time)
-        
-    # Create a mask to find the exact row
-    mask = (frame['time'].astype(str) == time_str) & (frame['sat_name'] == satellite_name)
-    
-    # Apply the mask to filter the DataFrame
-    filtered_row = frame[mask]
-    
-    # Check if a match was found and return the value
-    if not filtered_row.empty:
-        # .iloc[0] extracts the value from the very first matching row
-        snr_value = filtered_row['snr_dl'].iloc[0]
-        return float(snr_value)
-    else:
-        #print(f"Warning: Could not find SNR data for {satellite_name} at {time_str}.")
-        return None
-
-def compute_dl_thr(frame, satellite_name, time):
-    """
-    Looks up a specific satellite at a specific time in a DataFrame 
-    and returns its Downlink Throughput (thr_dl).
-    """
-    # Format the time object to match the DataFrame string format
-    if isinstance(time, datetime):
-        time_str = time.strftime("%Y-%m-%d %H:%M:%S")
-    else:
-        time_str = str(time)
-        
-    # Create a mask to find the exact row
-    mask = (frame['time'].astype(str) == time_str) & (frame['sat_name'] == satellite_name)
-    
-    # Apply the mask to filter the DataFrame
-    filtered_row = frame[mask]
-    
-    # Check if a match was found and return the value
-    if not filtered_row.empty:
-        # .iloc[0] extracts the value from the very first matching row
-        thr_value = filtered_row['thr_dl'].iloc[0] / (filtered_row['connected_users'].iloc[0])  # +1 to avoid division by zero
-        return float(thr_value)
-    else:
-        #print(f"Warning: Could not find Throughput data for {satellite_name} at {time_str}.")
-        return None
-
 def lla_to_ecef(lat, lon, alt):
     # seting the parameters for the WGS84
     a = 6378137.0 # the semi-major axis in meters
@@ -411,8 +303,14 @@ def calculate_beams_grid(center_lat, center_lon, beam_size_km, num_beams):
     alts = np.zeros_like(lats, dtype=np.float64)
 
     return list(zip(lats, lons, alts))
-    
-def compute_shannon(distance_m, parameters):
+
+def compute_distance_m(satellite_lat, satellite_lon, satellite_alt_m, ue_lat, ue_lon, ue_alt_m):
+    sat_x, sat_y, sat_z = lla_to_ecef(satellite_lat, satellite_lon, satellite_alt_m)
+    ue_x, ue_y, ue_z = lla_to_ecef(ue_lat, ue_lon, ue_alt_m)
+    distance_m = round(math.sqrt((sat_x - ue_x)**2 + (sat_y - ue_y)**2 + (sat_z - ue_z)**2), 2)
+    return distance_m
+
+def compute_snr(distance_m, parameters):
     # Unpack parameters
     eirp_ue = parameters['eirp_ue']
     gt_sat = parameters['gt_sat']
@@ -422,30 +320,29 @@ def compute_shannon(distance_m, parameters):
     bw_ul = parameters['bw_ul']
     freq_dl = parameters['freq_dl']
     freq_ul = parameters['freq_ul']
-    dl_db_headroom = parameters['dl_db_headroom']
-    ul_db_headroom = parameters['ul_db_headroom']
 
     c = 299792458 
     path_loss_dl_db = 20 * math.log10(distance_m) + 20 * math.log10(freq_dl) + 20 * math.log10(4 * math.pi / c)
     path_loss_ul_db = 20 * math.log10(distance_m) + 20 * math.log10(freq_ul) + 20 * math.log10(4 * math.pi / c)
 
-    # print(f"distance: {distance_m}m, dl pathloss: {path_loss_dl_db}dB, ul pathloss: {path_loss_ul_db}dB.")
-
     # Calculate received power in dBm
-    received_power_dl_dbm = eirp_sat + gt_ue - path_loss_dl_db - dl_db_headroom
-    received_power_ul_dbm = eirp_ue + gt_sat - path_loss_ul_db - ul_db_headroom
-    # print(f"received_power_dl = {received_power_dl_dbm} dBm, received_power_ul = {received_power_ul_dbm} dBm.")
+    received_power_dl_dbm = eirp_sat + gt_ue - path_loss_dl_db
+    received_power_ul_dbm = eirp_ue + gt_sat - path_loss_ul_db
 
     snr_dl_db = received_power_dl_dbm + 198.6 - 10 * math.log10(bw_dl)
     snr_ul_db = received_power_ul_dbm + 198.6 - 10 * math.log10(bw_ul)
-    # print(f"snr_dl = {snr_dl_db} dB, snr_ul = {snr_ul_db} dB.")
+
+    return snr_dl_db, snr_ul_db
+    
+def compute_shannon(distance_m, parameters):
+    snr_dl_db, snr_ul_db = compute_snr(distance_m, parameters)
 
     snr_dl_linear = 10 ** (snr_dl_db / 10)
     snr_ul_linear = 10 ** (snr_ul_db / 10)
 
-    dl_thr_mbps = round(bw_dl * math.log2(1 + snr_dl_linear) / 1e6, 4)
-    ul_thr_mbps = round(bw_ul * math.log2(1 + snr_ul_linear) / 1e6, 4)
-    # print(f"Estimated DL Throughput: {dl_thr_mbps} Mbps, Estimated UL Throughput: {ul_thr_mbps} Mbps.")
+    dl_thr_mbps = round(parameters['bw_dl'] * math.log2(1 + snr_dl_linear) / 1e6, 4)
+    ul_thr_mbps = round(parameters['bw_ul'] * math.log2(1 + snr_ul_linear) / 1e6, 4)
+
     return dl_thr_mbps, ul_thr_mbps
 
 def get_max_beam_throughput(frame, target_time,satellite_name, mini_cluster_position, scenario):
@@ -455,25 +352,19 @@ def get_max_beam_throughput(frame, target_time,satellite_name, mini_cluster_posi
         target_time_str = target_time.strftime("%Y-%m-%d %H:%M:%S")
     else:
         target_time_str = str(target_time)
-    
     try:
         matched_satellite = frame[frame['time'].astype(str) == target_time_str]
         matched_satellite = matched_satellite[matched_satellite['sat_name'].astype(str) == satellite_name]
         sat_lat = float(matched_satellite['sat_lat'].iloc[0])
-        sat_long = float(matched_satellite['sat_lon'].iloc[0])
+        sat_lon = float(matched_satellite['sat_lon'].iloc[0])
         sat_alt_m = float(matched_satellite['sat_height'].iloc[0])
 
-        sat_x, sat_y, sat_z = lla_to_ecef(sat_lat, sat_long, sat_alt_m)
-        ue_x, ue_y, ue_z = lla_to_ecef(mini_cluster_lat, mini_cluster_lon, 0)
-        distance_m = round(math.sqrt((sat_x - ue_x)**2 + (sat_y - ue_y)**2 + (sat_z - ue_z)**2), 2)
-        
+        distance_m = compute_distance_m(sat_lat, sat_lon, sat_alt_m, mini_cluster_lat, mini_cluster_lon, 0)
         dl_total_throughput, ul_total_throughput = compute_shannon(distance_m, scenario)
-
     except KeyError as e:
         print(f"Error: Missing expected column in DataFrame - {e}")
     except ValueError as e:
         print(f"Error: Data format issue (e.g., empty or non-numeric values) - {e}")
-        
     return dl_total_throughput, ul_total_throughput
 
 
@@ -514,7 +405,6 @@ def get_elevation(frame, target_time, satellite_name, mini_cluster_position):
         
     return sat_elev
 
-
 def get_snr(frame, target_time, satellite_name, mini_cluster_position, parameters):
     """
     Compute the dl and ul snr given the minicluster and sat positions.
@@ -528,7 +418,6 @@ def get_snr(frame, target_time, satellite_name, mini_cluster_position, parameter
         snr_ul_db: the actual ul snr in dB
     """
     mini_cluster_lat, mini_cluster_lon, _ = mini_cluster_position
-    dl_snr, ul_snr = 0, 0
     if isinstance(target_time, datetime):
         target_time_str = target_time.strftime("%Y-%m-%d %H:%M:%S")
     else:
@@ -538,49 +427,20 @@ def get_snr(frame, target_time, satellite_name, mini_cluster_position, parameter
         matched_satellite = frame[frame['time'].astype(str) == target_time_str]
         matched_satellite = matched_satellite[matched_satellite['sat_name'].astype(str) == satellite_name]
         sat_lat = float(matched_satellite['sat_lat'].iloc[0])
-        sat_long = float(matched_satellite['sat_lon'].iloc[0])
+        sat_lon = float(matched_satellite['sat_lon'].iloc[0])
         sat_alt_m = float(matched_satellite['sat_height'].iloc[0])
-
-        sat_x, sat_y, sat_z = lla_to_ecef(sat_lat, sat_long, sat_alt_m)
-        ue_x, ue_y, ue_z = lla_to_ecef(mini_cluster_lat, mini_cluster_lon, 0)
-        distance_m = round(math.sqrt((sat_x - ue_x)**2 + (sat_y - ue_y)**2 + (sat_z - ue_z)**2), 2)
+        distance_m = compute_distance_m(sat_lat, sat_lon, sat_alt_m, mini_cluster_lat, mini_cluster_lon, 0)
         
-        # Unpack parameters
-        eirp_ue = parameters['eirp_ue']
-        gt_sat = parameters['gt_sat']
-        eirp_sat = parameters['eirp_sat']
-        gt_ue = parameters['gt_ue']
-        bw_dl = parameters['bw_dl']
-        bw_ul = parameters['bw_ul']
-        freq_dl = parameters['freq_dl']
-        freq_ul = parameters['freq_ul']
-        dl_db_headroom = parameters['dl_db_headroom']
-        ul_db_headroom = parameters['ul_db_headroom']
-
-        c = 299792458 
-        path_loss_dl_db = 20 * math.log10(distance_m) + 20 * math.log10(freq_dl) + 20 * math.log10(4 * math.pi / c)
-        path_loss_ul_db = 20 * math.log10(distance_m) + 20 * math.log10(freq_ul) + 20 * math.log10(4 * math.pi / c)
-
-        # print(f"distance: {distance_m}m, dl pathloss: {path_loss_dl_db}dB, ul pathloss: {path_loss_ul_db}dB.")
-
-        # Calculate received power in dBm
-        received_power_dl_dbm = eirp_sat + gt_ue - path_loss_dl_db - dl_db_headroom
-        received_power_ul_dbm = eirp_ue + gt_sat - path_loss_ul_db - ul_db_headroom
-        # print(f"received_power_dl = {received_power_dl_dbm} dBm, received_power_ul = {received_power_ul_dbm} dBm.")
-
-        snr_dl_db = received_power_dl_dbm + 198.6 - 10 * math.log10(bw_dl)
-        snr_ul_db = received_power_ul_dbm + 198.6 - 10 * math.log10(bw_ul)
-
+        snr_dl_db, snr_ul_db = compute_snr(distance_m, parameters)
     except KeyError as e:
         print(f"Error: Missing expected column in DataFrame - {e}")
     except ValueError as e:
         print(f"Error: Data format issue (e.g., empty or non-numeric values) - {e}")
-        
     return snr_dl_db, snr_ul_db
    
 def get_visibility_time(sat_name, target_time, df):
     """
-    Compute the dl and ul snr given the minicluster and sat positions.
+    Returns the remaining visibility time of a given satellite starting from a given time instant.
     Args:
         frame: the dataframe containing the constellation information over time
         time: current simulation time
