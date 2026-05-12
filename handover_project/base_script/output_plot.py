@@ -41,7 +41,7 @@ save_plot_values = False
 # ================================================================================================
 
 # dataframes parameters
-df_name = "100km_25beams_sc9_padova.csv"
+df_name = "50km_100beams_sc9_padova.csv"
 padova_lat, padova_lon = 45.40996, 11.89261
 dfnames = [df_name] 
 fnames = ["padova"]
@@ -449,7 +449,7 @@ if(average_service_time):
                         sat_start_time, beam_start_time = t, t
                         
                     # the Satellite is the same. Did the Beam change? (intra_ho)
-                    elif curr_beam != dest_beam:
+                    elif (row.event_type == 'intra_ho'):
                         # Close out the old beam tracking period
                         if curr_beam is not None:
                             cluster_beam_durations.append((t - beam_start_time).total_seconds())
