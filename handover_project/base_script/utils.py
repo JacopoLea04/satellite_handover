@@ -78,17 +78,6 @@ def get_satellites_at_time(df, target_time):
         
     return satellites
 
-def get_max_elevation_satellite(visible_sats, fraction = 0.3, n_min=1):
-
-    if(len(visible_sats) == 0):
-        return None
-
-    visible_sats.sort(key=lambda sat : sat[4], reverse = True)
-    n_min = max(n_min, int(len(visible_sats)*fraction))
-    index = random.randint(0, len( visible_sats[:n_min])-1)
-    best_satellite =  visible_sats[:n_min][index]
-    return best_satellite
-
 def lla_to_ecef(lat, lon, alt):
     # seting the parameters for the WGS84
     a = 6378137.0 # the semi-major axis in meters
@@ -223,11 +212,8 @@ def get_coverage_beam_indices_matrix(visible_clusters_indices_matrix, cell_dim_b
     """
     rows, cols = visible_clusters_indices_matrix.shape
     satellite_beams_matrix = np.arange(0, cell_dim_beams * cell_dim_beams).reshape(cell_dim_beams, cell_dim_beams)
-    # print(satellite_beams_matrix)
     satellite_beams_matrix = np.roll(satellite_beams_matrix, shift=(-rows, cols), axis=(0, 1))
-    # print(satellite_beams_matrix)
     coverage_beams_matrix = np.take(satellite_beams_matrix, visible_clusters_indices_matrix)
-    # print(coverage_beams_matrix)
     return coverage_beams_matrix
 
 def calculate_beams_grid(center_lat, center_lon, beam_size_km, num_beams):
