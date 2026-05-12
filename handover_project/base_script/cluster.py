@@ -3,6 +3,7 @@ from beam import Beam
 from satellite import Satellite
 from datetime import datetime, timedelta
 import utils
+import handover_strategies as strategies
 import random
 from satellite import Satellite
 import numpy as np
@@ -222,60 +223,13 @@ class Cluster:
                         ue.time_to_next_handover = 0 # reset the time to next handover in case of fixed timer handover condition
                     # if there is at least one, select a random one among them and handover
                     elif(sat_selection_condition == "RANDOM"):
-                        # select a random satellite among the visible ones and handover to it
-                        random_index = random.randint(0, choices-1)
-                        next_iiisat = visible_sats_for_each_minicluster[mini_cluster.index][random_index][0]
-                        next_beam_index = visible_sats_for_each_minicluster[mini_cluster.index][random_index][1]
-
-                        # is this satellite already configured?
-                        selected_sat_name = next_sat[0]
-                        if selected_sat_name not in service_sats:
-                            sat = Satellite(selected_sat_name, self.sat_servers, self.sat_mu_inter, self.sat_mu_intra, self.num_beams)
-                            service_sats[selected_sat_name] = sat
-                        next_sat = service_sats[selected_sat_name]
-                    # if there is at least one, select among a subset of the satellites with highest elevation agnkes
+                        next_sat, next_beam_index = strategies.get_random_visible_satellite(visible_sats_for_each_minicluster[mini_cluster.index])
                     elif(sat_selection_condition == "MAX_ELEVATION"):
-
-                        # order visible satellites according to their elevation angle respect to the current mini-cluster considered
-                        for iii, xxx in enumerate(visible_sats_for_each_minicluster[mini_cluster.index]):
-                            sat_curr = xxx[0]
-                            beam_curr = xxx[1]
-                            sat_elev = utils.get_elevation(curr_time_df, round_time, sat_curr[0], mini_cluster.position)
-                            visible_sats_for_each_minicluster[mini_cluster.index][iii] = (sat_curr, beam_curr, sat_elev)
-                        visible_sats_for_each_minicluster[mini_cluster.index] = sorted(visible_sats_for_each_minicluster[mini_cluster.index], key=lambda x: x[2], reverse=True)
-                        
-                        # select 30% of the subset of higher elevation angle satellites
-                        choices = max(int(0.3*len(visible_sats_for_each_minicluster[mini_cluster.index])), 1)
-                        # select a random satellite among the selected ones and handover to it
-                        random_index = random.randint(0, choices-1)
-                        next_sat = visible_sats_for_each_minicluster[mini_cluster.index][random_index][0]
-                        next_beam_index = visible_sats_for_each_minicluster[mini_cluster.index][random_index][1]
-
-                        # is this satellite already configured?
-                        selected_sat_name = next_sat[0]
-                        if selected_sat_name not in service_sats:
-                            sat = Satellite(selected_sat_name, self.sat_servers, self.sat_mu_inter, self.sat_mu_intra, self.num_beams)
-                            service_sats[selected_sat_name] = sat
-                        next_sat = service_sats[selected_sat_name]
-                    # if there is at least one, select among a subset of the satellites with highest elevation agnkes
+                        next_sat, next_beam_index = strategies.get_max_elevation_satellite(visible_sats_for_each_minicluster[mini_cluster.index], curr_time_df, round_time, mini_cluster)
                     elif(sat_selection_condition == "MAX_VISIBILITY"):
-
-                        # order visible satellites according to their elevation angle respect to the current mini-cluster considered
-                        for iii, xxx in enumerate(visible_sats_for_each_minicluster[mini_cluster.index]):
-                            sat_curr = xxx[0]
-                            beam_curr = xxx[1]
-                            vis_time = utils.get_visibility_time(sat_curr[0], round_time, curr_time_df)
-                            visible_sats_for_each_minicluster[mini_cluster.index][iii] = (sat_curr, beam_curr, vis_time)
-                        visible_sats_for_each_minicluster[mini_cluster.index] = sorted(visible_sats_for_each_minicluster[mini_cluster.index], key=lambda x: x[2], reverse=True)
-                        
-                        # select 30% of the subset of higher elevation angle satellites
-                        choices = max(int(0.3*len(visible_sats_for_each_minicluster[mini_cluster.index])), 1)
-                        # select a random satellite among the selected ones and handover to it
-                        random_index = random.randint(0, choices-1)
-                        next_sat = visible_sats_for_each_minicluster[mini_cluster.index][random_index][0]
-                        next_beam_index = visible_sats_for_each_minicluster[mini_cluster.index][random_index][1]
-
-                        # is this satellite already configured?
+                        next_sat, next_beam_index = strategies.get_max_visibility_satellite(visible_sats_for_each_minicluster[mini_cluster.index], curr_time_df, round_time)
+                                                
+                    if(next_sat is not None):
                         selected_sat_name = next_sat[0]
                         if selected_sat_name not in service_sats:
                             sat = Satellite(selected_sat_name, self.sat_servers, self.sat_mu_inter, self.sat_mu_intra, self.num_beams)
@@ -283,7 +237,6 @@ class Cluster:
                         next_sat = service_sats[selected_sat_name]
                         if(ho_condition[0] == "TIMER"):
                             ue.time_to_next_handover = ho_condition[1] -1 # reset the time to next handover in case of fixed timer handover condition
-                    # handover to the selected sat (if no one, go out of service)
                     ue.inter_handover(time, next_sat, next_beam_index)
                 
                 elif(ue.intra_handover_flag): # handover to a new visible beam of the same satellite
@@ -291,7 +244,6 @@ class Cluster:
                     next_beam_index = visible_sats_for_each_minicluster[mini_cluster.index][index][1]
                     ue.intra_handover(time, next_sat, next_beam_index)
 
-                
         self.save_instant_throughput(time)
 
     def save_instant_throughput(self, target_time):
