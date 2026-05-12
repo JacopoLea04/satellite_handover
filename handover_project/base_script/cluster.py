@@ -18,7 +18,7 @@ class Cluster:
         self.sat_servers = servers
         self.sat_mu_inter = mu_inter
         self.sat_mu_intra = mu_intra
-        self.scenario = scenario
+        self.scenario = scenario # stores the struct containing the parameters characterizing the scenario (e.g.: frequency, EIRP, etc) from the utils class.
 
         # beams computation
         self.positions = self.calculate_beams_grid(self.position[0], self.position[1], self.beam_size_km, self.num_beams)
@@ -186,6 +186,10 @@ class Cluster:
                 if(event == "SNR"):
                     dl_threshold, ul_threshold = ho_condition[1], ho_condition[2]
                     snr_dl, snr_ul = utils.get_snr(self.frame, round_time, curr_sat.name, mini_cluster.position, self.scenario)
+                    dl_measurement_noise = random.gauss(0, self.scenario['dlul_snr_variance'])
+                    ul_measurement_noise = random.gauss(0, self.scenario['dlul_snr_variance'])
+                    snr_dl += dl_measurement_noise
+                    snr_ul += ul_measurement_noise
                     if(snr_dl < dl_threshold or snr_ul < ul_threshold):
                         ue.inter_handover_flag = True
                 elif(event == "TIMER"):
