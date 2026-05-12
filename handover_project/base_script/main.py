@@ -11,10 +11,10 @@ import utils
 
 
 # initial configuration
-df_name_1 = "100km_25beams_sc9_padova.csv"
+df_name_1 = "50km_100beams_sc9_padova.csv"
 
 simTime = timedelta(minutes=20)
-num_ues = 100
+num_ues = 400
 mu_inter = 30 * 1e-3
 mu_intra = 1 * 1e-3 
 servers = 1
@@ -47,13 +47,13 @@ num_beams = int(numbers[1])
 parser = argparse.ArgumentParser(description="Satellite Simulation Script")
 parser.add_argument('--servers', type=int, default=servers, help='Number of servers')
 parser.add_argument('--num_ues', type=int, default=num_ues, help='Number of User Equipments')
-handover_timer = 10
+handover_timer = 40
 args= parser.parse_args()
 servers = args.servers
 num_ues = args.num_ues
 
 # (name, position, num_ues, satellites_frame, threshold_snr, satellite servers, satellite mu)
-cluster1 = Cluster("Cluster1", (45.40996, 11.89261, 0), num_ues, beam_size_km, num_beams, data_frame_1, 7, servers, mu_inter, mu_intra, scenario)
+cluster1 = Cluster("Cluster1", (45.40996, 11.89261, 0), num_ues, beam_size_km, num_beams, data_frame_1, servers, mu_inter, mu_intra, scenario)
 clusters = [cluster1] 
 
 # (# year, month, day, hour, minute, second)
