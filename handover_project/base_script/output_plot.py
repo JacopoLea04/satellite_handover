@@ -27,15 +27,12 @@ average_service_time = True
 ho_handled = True
 # 6. Average number and duration of out of services
 out_of_service = True
-# 7.3.2 throughput considering HO outage time 
+# 7  Throughput considering HO outage time 
 get_throuthput_ho_v2 = True
-
-
-# ============ TO FIX ==============
-# 9. Number of ping-pong handovers
-ping_pong_handovers = False
-# 10. save the results into a csv
-save_plot_values = False
+# 8. Number of ping-pong handovers
+ping_pong_handovers = True
+# 9. Save the results into a csv
+save_plot_values = True
 
 
 # ================================================================================================
@@ -109,7 +106,9 @@ if(visible_sats_over_time):
         if(save_plot_values):
             values_df = pd.DataFrame({'timestamp': timestamps, 'elapsed_seconds': np.arange(len(timestamps)), 'visible_satellites': visible_sats})
             csv_file_name = "1-satellite_visibility_values.csv"
-            csv_file_path = os.path.join(output_folder, fname, csv_file_name)
+            target_dir = os.path.join(output_folder, fname)
+            csv_file_path = os.path.join(target_dir, csv_file_name)
+            os.makedirs(target_dir, exist_ok=True)
             values_df.to_csv(csv_file_path, index=False)
     plt.close()
 
@@ -177,9 +176,11 @@ if(visible_sats_over_time):
         plt.savefig(file_path, dpi=300, bbox_inches='tight')
 
         if(save_plot_values):
-            values_df = pd.DataFrame({'timestamp': timestamps, 'elapsed_seconds': np.arange(len(timestamps)), 'visible_satellites': visible_sats})
-            csv_file_name = "1-satellite_visibility_values.csv"
-            csv_file_path = os.path.join(output_folder, fname, csv_file_name)
+            values_df = pd.DataFrame({'timestamp': timestamps, 'elapsed_seconds': np.arange(len(timestamps)), 'visible_sat_beam_NO': visible_sat_beam_NO, 'visible_sat_beam_center': visible_sat_beam_center, 'visible_sat_beam_SE': visible_sat_beam_SE})
+            csv_file_name = "1.1-satellite_visibility_values.csv"
+            target_dir = os.path.join(output_folder, fname)
+            csv_file_path = os.path.join(target_dir, csv_file_name)
+            os.makedirs(target_dir, exist_ok=True)
             values_df.to_csv(csv_file_path, index=False)
         plt.close()
 
@@ -727,9 +728,9 @@ if(out_of_service):
 
 # ========================================================================================================= #
 
-# 7.3.2 Get the throughput considering the handover outage time (v2)
+# 7 Get the throughput considering the handover outage time (v2)
 if(get_throuthput_ho_v2):
-    print("7.3.2 Plotting the average throughput considering the handover outage time ...")
+    print("7. Plotting the average throughput considering the handover outage time ...")
 
     fig, ax = plt.subplots(figsize=(12, 6))
 
@@ -761,7 +762,7 @@ if(get_throuthput_ho_v2):
                 'Timestamp': time_vector,
                 'Cluster_Thr': avg_thr
             })
-            csv_file_path = os.path.join(output_folder, fname, "7.3.2-DL_throughput_ho_values.csv")
+            csv_file_path = os.path.join(output_folder, fname, "7-DL_throughput_ho_values.csv")
             df_export.to_csv(csv_file_path, index=False)
 
     # --- Finalize and Save the Combined Plot ---
@@ -773,7 +774,7 @@ if(get_throuthput_ho_v2):
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%M:%S'))
 
     os.makedirs(output_folder, exist_ok=True)
-    combined_file_path = os.path.join(output_folder, "7.3.2-DL_throughput_ho.png")
+    combined_file_path = os.path.join(output_folder, "7-DL_throughput_ho.png")
     fig.savefig(combined_file_path, dpi=300, bbox_inches='tight')
     plt.close()
     print("   Completed!\n")
@@ -784,7 +785,7 @@ if(get_throuthput_ho_v2):
 # 9. Number of ping-pong handovers
 if(ping_pong_handovers):
     print("9. Printing the average number of ping-pong handovers ...")
-    folder_path = Path('Cluster2 dataframes')
+    folder_path = Path('Cluster1 dataframes')
     ping_pong_count = []
     num_ues = 0
     for file_path in folder_path.glob('*.csv'):
