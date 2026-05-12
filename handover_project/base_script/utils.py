@@ -577,3 +577,21 @@ def get_snr(frame, target_time, satellite_name, mini_cluster_position, parameter
         print(f"Error: Data format issue (e.g., empty or non-numeric values) - {e}")
         
     return snr_dl_db, snr_ul_db
+   
+def get_visibility_time(sat_name, target_time, df):
+    """
+    Compute the dl and ul snr given the minicluster and sat positions.
+    Args:
+        frame: the dataframe containing the constellation information over time
+        time: current simulation time
+        satellite_name: name of the satellite we want to compute the snr
+    Returns:
+        visibility_time: remaining visibility time of the satellite
+    """
+    vis_time = 0
+
+    # Convert the entire 'time' column from strings to datetime objects
+    df['time'] = pd.to_datetime(df['time'])
+    vis_time = df[(df['sat_name'] == sat_name) & (df['time'] == target_time)]['occurrence_countdown'].iloc[0]
+
+    return vis_time
