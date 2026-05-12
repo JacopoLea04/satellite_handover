@@ -78,50 +78,6 @@ def get_satellites_at_time(df, target_time):
         
     return satellites
 
-def get_max_thr(df, sat_name, target_time):
-    """
-    Return max DL and UL throughput for a specific satellite at a given time instant
-    """
-    satellites = []
-    
-    # Check if target_time is a datetime object and format it to match the DataFrame
-    if isinstance(target_time, datetime):
-        # Formats to "YYYY-MM-DD HH:MM:SS" (e.g., "2025-06-08 00:00:00")
-        target_time_str = target_time.strftime("%Y-%m-%d %H:%M:%S")
-    else:
-        # Fallback just in case you pass a string directly
-        target_time_str = str(target_time)
-    
-    try:
-        matched_data = df[df['time'].astype(str) == target_time_str]
-        matched_data = matched_data[matched_data['sat_name'].astype(str) == sat_name]
-        
-        dl_thr = float(matched_data['thr_dl'].iloc[0])
-        ul_thr = float(matched_data['thr_ul'].iloc[0])
-    
-    
-    except KeyError as e:
-        print(f"Error: Missing expected column in DataFrame - {e}")
-    except ValueError as e:
-        print(f"Error: Data format issue (e.g., empty or non-numeric values) - {e}")
-        
-    return dl_thr, ul_thr
-
-def get_max_visibility_satellite_v2(visible_sats, time, df, fraction = 0.3, n_min=1):
-
-    if(len(visible_sats) == 0):
-        return None
-    visible_sats.sort(key=lambda sat : sat[11], reverse = True)
-    # best_sat = max(visible_sats, key=lambda sat: sat[11])
-    # print("we have ", len(visible_sats), " visible satellites.")
-    if(n_min > len(visible_sats)):
-        # print("only ", len(visible_sats), " visible. returning ", visible_sats[0][0], " with residual visibility of ", visible_sats[0][11], " (and others).")
-        return visible_sats
-    else: 
-        n_min = max(n_min, int(len(visible_sats)*fraction))
-        # print("returning top ", n_min, " satellites. Top one ", visible_sats[0][0], " with residual visibility of ", visible_sats[0][11], " (and others).")
-        return visible_sats[:n_min]
-
 def get_max_elevation_satellite(visible_sats, fraction = 0.3, n_min=1):
 
     if(len(visible_sats) == 0):
