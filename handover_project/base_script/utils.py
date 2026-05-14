@@ -319,8 +319,6 @@ def measure_snr_with_noise(distance_m, parameters):
     
 def compute_shannon(distance_m, parameters):
     snr_dl_db, snr_ul_db = compute_snr(distance_m, parameters)
-    snr_dl_db -= parameters['dl_db_headroom']
-    snr_ul_db -= parameters['ul_db_headroom']
 
     snr_dl_linear = 10 ** (snr_dl_db / 10)
     snr_ul_linear = 10 ** (snr_ul_db / 10)
@@ -329,6 +327,24 @@ def compute_shannon(distance_m, parameters):
     ul_thr_mbps = round(parameters['bw_ul'] * math.log2(1 + snr_ul_linear) / 1e6, 4)
 
     return dl_thr_mbps, ul_thr_mbps
+
+def compute_shannon_from_snr(snr_dl_db, snr_ul_db, parameters):
+    snr_dl_linear = 10 ** (snr_dl_db / 10)
+    snr_ul_linear = 10 ** (snr_ul_db / 10)
+
+    dl_thr_mbps = round(parameters['bw_dl'] * math.log2(1 + snr_dl_linear) / 1e6, 4)
+    ul_thr_mbps = round(parameters['bw_ul'] * math.log2(1 + snr_ul_linear) / 1e6, 4)
+
+    return dl_thr_mbps, ul_thr_mbps
+
+def reverse_snr_from_thr(dl_ue_thr, ul_ue_thr, parameters):
+    snr_dl_linear = (2 ** (dl_ue_thr * 1e6 / parameters['bw_dl']) - 1)
+    snr_ul_linear = (2 ** (ul_ue_thr * 1e6 / parameters['bw_ul']) - 1)
+
+    snr_dl_db = round(10 * math.log10(snr_dl_linear), 4)
+    snr_ul_db = round(10 * math.log10(snr_ul_linear), 4)
+
+    return snr_dl_db, snr_ul_db
 
 def get_max_beam_throughput(frame, target_time,satellite_name, mini_cluster_position, scenario):
     mini_cluster_lat, mini_cluster_lon, _ = mini_cluster_position

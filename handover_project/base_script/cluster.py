@@ -272,6 +272,16 @@ class Cluster:
                 # instant throughput computation
                 dl_ue_throughput = max_dl_thr / connected_users
                 ul_ue_throughput = max_ul_thr / connected_users
+                # print(f"Instant throughput for UE {ue.id}: DL={dl_ue_throughput}, UL={ul_ue_throughput}")
+                # reverse the shannon formula to compute the equivalent snr from the throughput
+                equivalent_snr_dl_db, equivalent_snr_ul_db = utils.reverse_snr_from_thr(dl_ue_throughput, ul_ue_throughput, self.scenario)
+                # print(f"Equivalent SNR for UE {ue.id}: DL={equivalent_snr_dl_db} dB, UL={equivalent_snr_ul_db} dB")
+                equivalent_snr_dl_db -= self.scenario['dl_db_headroom']
+                equivalent_snr_ul_db -= self.scenario['ul_db_headroom']
+                # print(f"Equivalent SNR after accounting for headroom for UE {ue.id}: DL={equivalent_snr_dl_db} dB, UL={equivalent_snr_ul_db} dB")
+                # now compute the throughput of the UE after accounting for the headroom
+                dl_ue_throughput, ul_ue_throughput = utils.compute_shannon_from_snr(equivalent_snr_dl_db, equivalent_snr_ul_db, self.scenario)
+                # print(f"Instant throughput for UE {ue.id} after accounting for headroom: DL={dl_ue_throughput}, UL={ul_ue_throughput}")
                 ho_duration_ms = ue.remaining_handover_execution_time
                 if(ue.remaining_handover_execution_time >= 1000):
                     dl_ue_throughput = 0
