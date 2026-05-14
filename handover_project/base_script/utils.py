@@ -309,6 +309,13 @@ def compute_snr(distance_m, parameters):
     snr_ul_db = received_power_ul_dbm + 198.6 - 10 * math.log10(bw_ul)
 
     return snr_dl_db, snr_ul_db
+
+def measure_snr_with_noise(distance_m, parameters):
+    snr_dl_db, snr_ul_db = compute_snr(distance_m, parameters)
+    noise_variance = parameters['dlul_snr_variance']
+    snr_dl_db = round(snr_dl_db + random.gauss(0, math.sqrt(noise_variance)), 4)
+    snr_ul_db = round(snr_ul_db + random.gauss(0, math.sqrt(noise_variance)), 4)
+    return snr_dl_db, snr_ul_db
     
 def compute_shannon(distance_m, parameters):
     snr_dl_db, snr_ul_db = compute_snr(distance_m, parameters)
@@ -381,7 +388,7 @@ def get_elevation(frame, target_time, satellite_name, mini_cluster_position):
         
     return sat_elev
 
-def get_snr(frame, target_time, satellite_name, mini_cluster_position, parameters):
+def get_noisy_snr(frame, target_time, satellite_name, mini_cluster_position, parameters):
     """
     Compute the dl and ul snr given the minicluster and sat positions.
     Args:
@@ -398,7 +405,6 @@ def get_snr(frame, target_time, satellite_name, mini_cluster_position, parameter
         target_time_str = target_time.strftime("%Y-%m-%d %H:%M:%S")
     else:
         target_time_str = str(target_time)
-    
     try:
         matched_satellite = frame[frame['time'].astype(str) == target_time_str]
         matched_satellite = matched_satellite[matched_satellite['sat_name'].astype(str) == satellite_name]
