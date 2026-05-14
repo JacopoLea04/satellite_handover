@@ -319,6 +319,8 @@ def measure_snr_with_noise(distance_m, parameters):
     
 def compute_shannon(distance_m, parameters):
     snr_dl_db, snr_ul_db = compute_snr(distance_m, parameters)
+    snr_dl_db -= parameters['dl_db_headroom']
+    snr_ul_db -= parameters['ul_db_headroom']
 
     snr_dl_linear = 10 ** (snr_dl_db / 10)
     snr_ul_linear = 10 ** (snr_ul_db / 10)
