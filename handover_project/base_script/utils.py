@@ -55,7 +55,9 @@ sc6_parameters = {
     'atm_loss' : 5.3,   # dB
     'dl_db_headroom' : 0, # dB
     'ul_db_headroom' : 0,  # dB
-    'dlul_snr_variance' : 1 # variance of the noise added to the UE snr measurement to simulate real-world measurement imperfections,
+    'dlul_snr_variance' : 1, # variance of the noise added to the UE snr measurement to simulate real-world measurement imperfections
+    '3gpp_overhead_dl': 0.18, # additional percentage of overhead as specified by 3GPP TS 38.306
+    '3gpp_overhead_ul': 0.1
 }
 
 sc9_parameters = {
@@ -70,7 +72,9 @@ sc9_parameters = {
     'atm_loss' : 0.8,   # dB
     'dl_db_headroom' : 2, # dB
     'ul_db_headroom' : 2,  # dB
-    'dlul_snr_variance' : 1 # variance of the noise added to the UE snr measurement to simulate real-world measurement imperfections,
+    'dlul_snr_variance' : 1, # variance of the noise added to the UE snr measurement to simulate real-world measurement imperfections
+    '3gpp_overhead_dl': 0.14, # additional percentage of overhead as specified by 3GPP TS 38.306
+    '3gpp_overhead_ul': 0.08
 }
 
 def get_satellites_at_time(df, target_time):

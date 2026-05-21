@@ -291,6 +291,10 @@ class Cluster:
                     dl_ue_throughput = dl_ue_throughput * (1 - ue.remaining_handover_execution_time/1000)
                     ul_ue_throughput = ul_ue_throughput * (1 - ue.remaining_handover_execution_time/1000)
                     ue.remaining_handover_execution_time = 0
+
+                dl_ue_throughput *= (1 - self.scenario['3gpp_overhead_dl'])
+                ul_ue_throughput *= (1 - self.scenario['3gpp_overhead_ul'])
+                
                 thr_info = {
                         "time": target_time,
                         "ue.id": ue.id,
