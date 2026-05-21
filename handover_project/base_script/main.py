@@ -12,7 +12,7 @@ import utils
 
 # initial configuration
 df_name_1 = "100km_25beams_sc9_padova.csv"
-ho_condition_1 = ("ELEVATION", 50)
+ho_condition_1 = "VISIBILITY"
 sat_selection_condition_1 = "MAX_VISIBILITY"
 
 simTime = timedelta(minutes=20)
@@ -46,7 +46,6 @@ data_frame_1 = pd.read_csv(df_name_1)
 numbers = re.findall(r'\d+', df_name_1)
 beam_size_km = int(numbers[0])
 num_beams = int(numbers[1])
-
 
 
 # parsing input parameters 
@@ -87,13 +86,6 @@ with tqdm(total=total_iterations, desc="Simulating") as pbar:
         
         # Display the current time on the right side of the progress bar instead of printing it
         pbar.set_postfix(time=time.strftime("%H:%M:%S"))
-
-        # ========================== TO FIX =========================
-        """
-        # save the instant throughput for all the ues
-        for cluster in clusters:
-            cluster.save_instant_thr(time, service_sats)
-        """
         
         # increment the time by 1 sec
         time += timedelta(seconds=1)
@@ -103,6 +95,72 @@ with tqdm(total=total_iterations, desc="Simulating") as pbar:
 
 
 print("Simulation Complete!\n")
+
+print("Computing Doppler Shifts for all the UEs ...")
+
+total_iterations = num_ues
+with tqdm(total=total_iterations, desc="Simulating") as pbar:
+    for cluster in clusters: 
+        frame = cluster.frame
+
+        # in order to increase lookup speed, convert DataFrame to an O(1) lookup dictionary once per cluster
+        # we use zip() as it is very fast for iterating through pandas columns
+        sat_positions_map = {
+            (str(sat), str(t)): (lat, lon, alt)
+            for sat, t, lat, lon, alt in zip(
+                frame['sat_name'], 
+                frame['time'], 
+                frame['sat_lat'], 
+                frame['sat_lon'], 
+                frame['sat_height']
+            )
+        }
+
+        # cache timestamp: avoid recalculating time strings for the same time instant
+        time_cache = {}
+
+        for mini_cluster in cluster.list_beams:
+            ue_pos = mini_cluster.position
+            
+            for ue in mini_cluster.list_ues:
+                handover_info = ue.thr_tracker
+                
+                for line in handover_info:
+                    time = line["time"]
+                    sat_name = str(line["sat.id"])
+
+                    # fetch or compute time strings (Past, Present, Future)
+                    if time not in time_cache:
+                        if isinstance(time, datetime):
+                            t_curr = time.strftime("%Y-%m-%d %H:%M:%S")
+                            t_old = (time - pd.Timedelta(seconds=1)).strftime("%Y-%m-%d %H:%M:%S")
+                            t_fut = (time + pd.Timedelta(seconds=1)).strftime("%Y-%m-%d %H:%M:%S")
+                        else:
+                            t_curr = str(time)
+                            t_old = str(time - pd.Timedelta(seconds=1))
+                            t_fut = str(time + pd.Timedelta(seconds=1))
+                        time_cache[time] = (t_old, t_curr, t_fut)
+                    
+                    t_old, t_curr, t_fut = time_cache[time]
+
+                    # retrieve positions instantly from the dictionary
+                    # .get() safely returns (None, None, None) if the key isn't found
+                    default_pos = (None, None, None)
+                    old_pos = sat_positions_map.get((sat_name, t_old), default_pos)
+                    curr_pos = sat_positions_map.get((sat_name, t_curr), default_pos)
+                    fut_pos = sat_positions_map.get((sat_name, t_fut), default_pos)
+
+                    # compute doppler shifts
+                    doppler_dl, doppler_ul = utils.compute_doppler_shift(
+                        ue_pos, old_pos, curr_pos, fut_pos, scenario
+                    )
+                    
+                    line['doppler_shift_dl_KHz'] = doppler_dl / 1000
+                    line['doppler_shift_ul_KHz'] = doppler_ul / 1000
+                pbar.set_postfix(time=time.strftime("%H:%M:%S"))
+                pbar.update(1)
+            
+print("Computation completed!\n")
 
 print("Creating the folder with the ue dataframes ...")
 
@@ -118,15 +176,24 @@ for folder in output_folders:
     if os.path.exists(folder):
         shutil.rmtree(folder)
 
-for name, sat in service_sats.items():
-    sat.deactivate()
+total_iterations = len(service_sats)
+with tqdm(total=total_iterations, desc="Simulating") as pbar:
+    for name, sat in service_sats.items():
+        sat.deactivate()
+        pbar.set_postfix(time=time.strftime("%H:%M:%S"))
+        pbar.update(1)
 
 print("Folder created!\n")
 
 print("Creating the folder with the sat dataframes ...")
-for cluster in clusters:
-    for mini_cluster in cluster.list_beams:
-        for ue in mini_cluster.list_ues:
-            ue.deactivate(cluster.name)
+
+total_iterations = num_ues
+with tqdm(total=total_iterations, desc="Simulating") as pbar:
+    for cluster in clusters:
+        for mini_cluster in cluster.list_beams:
+            for ue in mini_cluster.list_ues:
+                ue.deactivate(cluster.name)
+                pbar.set_postfix(time=time.strftime("%H:%M:%S"))
+                pbar.update(1)
 
 print("Folder created!\n")
