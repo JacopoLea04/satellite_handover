@@ -23,7 +23,7 @@ def generate_time_vector(start_time, offset_seconds, step_seconds):
     """
     return start_time + np.arange(0, offset_seconds + step_seconds, step_seconds).astype('timedelta64[s]')
 
-def evaluate_time_instant(time_instant, cluster, tle_list, lat_ue, lon_ue, beam_footprint_m, eirp_gt, gt_sat, eirp_sat, gt_ue, frequency_dl, frequency_ul, bandwidth_dl, bandwidth_ul, sc6, sc9):
+def evaluate_time_instant(time_instant, cluster, tle_list, lat_ue, lon_ue, beam_footprint_m, cell_dim):
     """
     Given a time instant, a list of satellite TLEs, and some transmission parameters, this function 
     evaluates which satellites are within range of the UE and computes the relevant transmission parameters
@@ -35,16 +35,6 @@ def evaluate_time_instant(time_instant, cluster, tle_list, lat_ue, lon_ue, beam_
             lat_ue (float): Latitude of the user equipment (UE) in decimal degrees
             lon_ue (float): Longitude of the user equipment (UE) in decimal degrees
             beam_footprint_m (float): The diameter of the satellite beam footprint in meters
-            eirp_gt (float): EIRP of the ground terminal in dBW
-            gt_sat (float): G/T of the satellite in dB/K
-            eirp_sat (float): EIRP of the satellite in dBW
-            gt_ue (float): G/T of the user equipment in dB/K
-            frequency_dl (float): Downlink carrier frequency in GHz
-            frequency_ul (float): Uplink carrier frequency in GHz
-            bandwidth_dl (float): Downlink bandwidth in Hz
-            bandwidth_ul (float): Uplink bandwidth in Hz
-            sc6 (boolean): operate in 3GPP SC6 scenario - affects the channel model and transmission parameters
-            sc9 (boolean): operate in 3GPP SC9 scenario - affects the channel model and transmission parameters
         Returns:
             list of dicts: A list of dictionaries containing the computed parameters for each satellite within range in the following form:
                 {
@@ -53,13 +43,7 @@ def evaluate_time_instant(time_instant, cluster, tle_list, lat_ue, lon_ue, beam_
                     "sat_name": satellite_name,
                     "sat_lat": sat_lat,
                     "sat_lon": sat_lon,
-                    "sat_height": sat_height_m,
-                    "elevation": elevation_angle,
-                    "slant": slant_range,
-                    "snr_dl": dl_snr,
-                    "snr_ul": ul_snr,
-                    "thr_dl": dl_rate,
-                    "thr_ul": ul_rate
+                    "sat_height": sat_height_m
                 }
     """
 
@@ -78,39 +62,12 @@ def evaluate_time_instant(time_instant, cluster, tle_list, lat_ue, lon_ue, beam_
             lon_ue,
             sat_lat,
             sat_lon,
-            beam_footprint_m * 5
+            beam_footprint_m * cell_dim
         )
 
         # if the satellite is within range, compute the channel parameters and save the results.
         if within is not None:
-            # compute the elevation angle
-            elevation_angle = ChannelParameters.elevation_angle_deg(
-                lat_ue, lon_ue,
-                sat_lat, sat_lon,
-                sat_height_m
-            )
-
-            # compute the slant range
-            slant_range = ChannelParameters.get_distance(elevation_angle, sat_height_m)
-
-            # compute the UL and DL rates and SNRs based on the channel parameters
-            ul_rate, dl_rate, ul_snr, dl_snr = ChannelParameters.calculate_ue_rate(
-                lat_ue, lon_ue,
-                sat_lat, sat_lon,
-                elevation_angle,
-                slant_range,
-                eirp_gt,
-                eirp_sat,
-                gt_ue,
-                gt_sat,
-                frequency_dl,
-                frequency_ul,
-                bandwidth_dl,
-                bandwidth_ul,
-                sc6,
-                sc9
-            )
-
+           
             # save the results in the list as a dictionary
             results.append({
                 "cluster_id": cluster,
@@ -119,13 +76,6 @@ def evaluate_time_instant(time_instant, cluster, tle_list, lat_ue, lon_ue, beam_
                 "sat_lat": sat_lat,
                 "sat_lon": sat_lon,
                 "sat_height": sat_height_m,
-                "elevation": elevation_angle,
-                "slant": slant_range,
-                "snr_dl": dl_snr,
-                "snr_ul": ul_snr,
-                "thr_dl": dl_rate,
-                "thr_ul": ul_rate,
-                "connected_users": 0 # Placeholder, to be filled in later
             })
 
     return results
@@ -146,33 +96,19 @@ def main():
     # lat_ue, lon_ue = 46.06250, 11.11497 # MUSE, Trento, IT
     # lat_ue, lon_ue = 48.14295, 11.57997 # hofgarten, moanco di baviera
     # lat_ue, lon_ue = 47.04240, 8.328983 #richard wagner museum, lucerna
-
-    cluster_id = 0
-
+    filename = "250km_sc9_padova"
+    cluster_id = 1
     max_workers = None      # none to use all availabe cpu cores, or set to a specific number
-
     sc9 = True
     sc6 = False
+    cell_dim = 5
+
+ # ====================================================================================== #
+
     if sc9:
         beam_footprint_m = 50_000  # beam diameter [m]
-        eirp_gt = -7                # UL EIRP [dBW]
-        gt_sat = 1.1                # UL G/T satellite [dB/K]
-        eirp_sat = 48.8             # DL EIRP [dBW]
-        gt_ue = -31.6               # DL G/T UE [dB/K]
-        bandwidth_dl = 30e6         # 30 MHz DL bandwidth [MHz]
-        bandwidth_ul = 0.4e6        # UL bandwidth [MHz]
-        frequency_dl = 2            # DL carrier frequency [GHz]
-        frequency_ul = 2            # UL carrier frequency [GHz]
     elif sc6:
         beam_footprint_m = 20_000  # beam diameter [m]
-        eirp_gt = 46.2              # UL EIRP [dBW]
-        gt_sat = 13                 # UL G/T satellite [dB/K]
-        eirp_sat = 30               # DL EIRP [dBW]
-        gt_ue = 15.9                # DL G/T UE [dB/K]
-        bandwidth_dl = 400e6        # DL bandwidth [MHz]
-        bandwidth_ul = 400e6        # UL bandwidth [MHz]
-        frequency_dl = 20           # DL carrier frequency [GHz]
-        frequency_ul = 30           # UL carrier frequency [GHz]
     else:
         print("\nNo scenario selected. Please set sc9 or sc6 to True.")
 
@@ -192,16 +128,7 @@ def main():
         lat_ue=lat_ue,
         lon_ue=lon_ue,
         beam_footprint_m=beam_footprint_m,
-        eirp_gt=eirp_gt,
-        gt_sat=gt_sat,
-        eirp_sat=eirp_sat,
-        gt_ue=gt_ue,
-        frequency_dl=frequency_dl,
-        frequency_ul=frequency_ul,
-        bandwidth_dl=bandwidth_dl,
-        bandwidth_ul=bandwidth_ul,
-        sc6=sc6,
-        sc9=sc9
+        cell_dim=cell_dim
     )
 
     # generate the vector of time instants for which to compute the satellite positions
@@ -213,7 +140,7 @@ def main():
     results_list = process_map(
         worker_evaluate_time_instant, 
         times, 
-        max_workers=max_workers,  # Specify your core count
+        max_workers=max_workers,  # Specify your core num_uescount
         chunksize=1
     )
     
@@ -231,12 +158,12 @@ def main():
     end_time = time.time()
     print(f"processed in {end_time - start_time:.2f} seconds.")
 
+    print("\n=== counting the number of occurences of each satellite for visibility condition ===")
+    df['occurrence_countdown'] = df.groupby('sat_name').cumcount(ascending=False) + 1
+
     print("\n=== saving output file ===")
-    filename = "200km_sc9_lucerna"
     df.to_csv(f'{filename}.csv', index=False)
     print(f"saved as {filename}.csv")
-    df.to_parquet(f'{filename}.parquet', engine='pyarrow', compression='snappy')
-    print(f"saved as {filename}.parquet")
 
 # whatever
 if __name__ == '__main__':
