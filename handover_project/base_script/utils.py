@@ -251,8 +251,8 @@ def check_clusters_visibility(cluster_centers_positions, cell_boundaries, cell_d
     
     visible_clusters_indices_matrix = np.array(visible_clusters_indices)
     out = np.array(strip_none_matrix(visible_clusters_indices_matrix))
-    if out.__contains__(-1):
-        print(f"visible clusters indices after stripping none: \n{out}")
+    # if out.__contains__(-1):
+    #     print(f"visible clusters indices after stripping none: \n{out}")
     return out
 
 def strip_none_matrix(matrix):
@@ -261,7 +261,7 @@ def strip_none_matrix(matrix):
         return []
 
     # 1. Keep rows that have at least one non-None value
-    valid_rows = [row for row in matrix if any(val is not -1 for val in row)]
+    valid_rows = [row for row in matrix if any(val != -1 for val in row)]
 
     # If the matrix is now empty, return early
     if not valid_rows:
@@ -271,7 +271,7 @@ def strip_none_matrix(matrix):
     num_cols = len(valid_rows[0])
     valid_col_indices = [
         col_idx for col_idx in range(num_cols) 
-        if any(row[col_idx] is not -1 for row in valid_rows)
+        if any(row[col_idx] != -1 for row in valid_rows)
     ]
 
     # 3. Build the final matrix keeping only the valid columns
