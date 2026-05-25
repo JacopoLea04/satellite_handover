@@ -505,3 +505,147 @@ def get_visibility_time(sat_name, target_time, df):
     vis_time = df[(df['sat_name'] == sat_name) & (df['time'] == target_time)]['occurrence_countdown'].iloc[0]
 
     return vis_time
+
+def get_sat_positions(frame, sat_name, time):
+    """
+    Returns the old, current,and future positions of a given satellite at a given time instant.
+    Args:
+        frame: the dataframe containing the constellation information over time
+        time: current simulation time
+        satellite_name: name of the satellite we want to compute the snr
+    Returns:
+        old_pos:  (sat_lat, sat_lon, sat_alt_m)
+        curr_pos: (sat_lat, sat_lon, sat_alt_m)
+        fut_pos:  (sat_lat, sat_lon, sat_alt_m)
+    """
+    old_lat, old_lon, old_alt = None, None, None
+    curr_lat, curr_lon, curr_alt = None, None, None
+    fut_lat, fut_lon, fut_alt = None, None, None
+
+    if isinstance(time, datetime):
+        time_curr = time.strftime("%Y-%m-%d %H:%M:%S")
+        time_old = (time - pd.Timedelta(seconds=1)).strftime("%Y-%m-%d %H:%M:%S")
+        time_fut = (time + pd.Timedelta(seconds=1)).strftime("%Y-%m-%d %H:%M:%S")
+    else:
+        time_curr = str(time)
+        time_old = str(time - pd.Timedelta(seconds=1))
+        time_fut = str(time + pd.Timedelta(seconds=1))
+
+    try:
+        # current position
+        matched_satellite = frame[frame['time'].astype(str) == time_curr]
+        matched_satellite = matched_satellite[matched_satellite['sat_name'].astype(str) == sat_name]
+        if not matched_satellite.empty:
+            curr_lat = float(matched_satellite['sat_lat'].iloc[0])
+            curr_lon = float(matched_satellite['sat_lon'].iloc[0])
+            curr_alt = float(matched_satellite['sat_height'].iloc[0])
+
+        # old position
+        matched_satellite = frame[frame['time'].astype(str) == time_old]
+        matched_satellite = matched_satellite[matched_satellite['sat_name'].astype(str) == sat_name]
+        if not matched_satellite.empty:
+            old_lat = float(matched_satellite['sat_lat'].iloc[0])
+            old_lon = float(matched_satellite['sat_lon'].iloc[0])
+            old_alt = float(matched_satellite['sat_height'].iloc[0])
+
+        # future position
+        matched_satellite = frame[frame['time'].astype(str) == time_fut]
+        matched_satellite = matched_satellite[matched_satellite['sat_name'].astype(str) == sat_name]
+        if not matched_satellite.empty:
+            fut_lat = float(matched_satellite['sat_lat'].iloc[0])
+            fut_lon = float(matched_satellite['sat_lon'].iloc[0])
+            fut_alt = float(matched_satellite['sat_height'].iloc[0])
+
+    except KeyError as e:
+        print(f"Error: Missing expected column in DataFrame - {e}")
+    except ValueError as e:
+        print(f"Error: Data format issue (e.g., empty or non-numeric values) - {e}")
+
+    return (old_lat, old_lon, old_alt), (curr_lat, curr_lon, curr_alt), (fut_lat, fut_lon, fut_alt)
+
+def compute_doppler_shift(ue_pos, old_pos, curr_pos, fut_pos, scenario):
+    """
+    Compute the Doppler shift given the old, current and future positions of the satellite and the user.
+    Args:
+        ue_pos: (ue_lat, ue_lon, ue_alt_m) position of the user
+        old_pos: (sat_lat, sat_lon, sat_alt_m) old position of the satellite
+        curr_pos: (sat_lat, sat_lon, sat_alt_m) current position of the satellite
+        fut_pos: (sat_lat, sat_lon, sat_alt_m) future position of the satellite
+        scenario: current scenario parameters (ex. sc6_parameters or sc9_parameters)
+    Returns:
+        doppler_shift_dl: Doppler shift in Hz
+        doppler_shift_ul: Doppler shift in Hz
+    """ 
+
+    freq_ul = scenario['freq_ul']
+    freq_dl = scenario['freq_dl']
+    dt = 1.0 # time interval in seconds between the old, current and future positions
+
+    # Compute the relative velocity between the user and the satellite
+    rel_velocity = compute_relative_velocity(ue_pos, old_pos, curr_pos, fut_pos, dt)
+
+    doppler_shift_dl = freq_dl * rel_velocity / 299792458  
+    doppler_shift_ul = freq_ul * rel_velocity / 299792458  
+
+    return doppler_shift_dl, doppler_shift_ul
+
+
+def compute_relative_velocity(ue_pos, old_pos, curr_pos, fut_pos, dt=1.0):
+    """
+    Compute the relative velocity between the user and the satellite along the line of sight (LOS) direction.
+    Args:
+        ue_pos: (ue_lat, ue_lon, ue_alt_m) position of the user
+        old_pos: (sat_lat, sat_lon, sat_alt_m) old position of the satellite
+        curr_pos: (sat_lat, sat_lon, sat_alt_m) current position of the satellite
+        fut_pos: (sat_lat, sat_lon, sat_alt_m) future position of the satellite
+        dt: time interval in seconds between the old, current and future positions (default: 1 second)
+    Returns:
+        relative_velocity: relative velocity in m/s 
+                           (positive if the satellite is moving away from the user, 
+                            negative if it is moving towards the user)
+    """
+    if dt <= 0.0:
+        raise ValueError(f"dt must be positive, got {dt!r}")
+ 
+    # Guard: need curr_pos and at least one neighbour to estimate velocity
+    if curr_pos is None:
+        return 0.0
+    if old_pos is None and fut_pos is None:
+        return 0.0
+ 
+    # Convert available LLA positions to ECEF 
+    ue_ecef = lla_to_ecef(ue_pos[0], ue_pos[1], ue_pos[2])
+    curr_ecef = lla_to_ecef(curr_pos[0], curr_pos[1], curr_pos[2])
+    old_ecef = lla_to_ecef(old_pos[0], old_pos[1], old_pos[2]) if old_pos is not None else None
+    fut_ecef = lla_to_ecef(fut_pos[0], fut_pos[1], fut_pos[2]) if fut_pos is not None else None
+
+    # Estimate satellite velocity vector (m/s) in ECEF
+    if old_ecef is not None and fut_ecef is not None:
+        # Central difference over 2·dt
+        sat_vel = tuple(
+            (fut_ecef[i] - old_ecef[i]) / (2.0 * dt) for i in range(3)
+        )
+    elif fut_ecef is not None:
+        # Forward difference over dt
+        sat_vel = tuple(
+            (fut_ecef[i] - curr_ecef[i]) / dt for i in range(3)
+        )
+    else:
+        # Backward difference over dt
+        sat_vel = tuple(
+            (curr_ecef[i] - old_ecef[i]) / dt for i in range(3)
+        )
+ 
+    # Line-of-sight (LOS) unit vector: UE → satellite
+    los = tuple(curr_ecef[i] - ue_ecef[i] for i in range(3))
+    los_norm = math.sqrt(sum(v ** 2 for v in los))
+ 
+    if los_norm == 0.0:
+        # Degenerate case: UE and satellite at the identical point
+        return 0.0
+    los_unit = tuple(v / los_norm for v in los)
+ 
+    # Radial velocity = projection of sat_vel onto the LOS unit vector 
+    radial_velocity = sum(sat_vel[i] * los_unit[i] for i in range(3))
+ 
+    return radial_velocity
