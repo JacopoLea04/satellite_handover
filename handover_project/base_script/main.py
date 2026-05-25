@@ -12,11 +12,13 @@ import utils
 
 # initial configuration
 df_name_1 = "100km_25beams_sc9_padova.csv"
-ho_condition_1 = ("ELEVATION", 50)
-sat_selection_condition_1 = "MAX_VISIBILITY"
+ho_condition_1 = ("ELEVATION", 30)
+sat_selection_condition_1 = "AVL_THR"
+enable_elevation_threshold = True
+elevation_threshold = 30
 
 simTime = timedelta(minutes=20)
-num_ues = 400
+num_ues = 100
 mu_inter = 30 * 1e-3
 mu_intra = 1 * 1e-3 
 servers = 1
@@ -58,7 +60,7 @@ servers = args.servers
 num_ues = args.num_ues
 
 # (name, position, num_ues, satellites_frame, threshold_snr, satellite servers, satellite mu)
-cluster1 = Cluster("Cluster1", (45.40996, 11.89261, 0), num_ues, beam_size_km, num_beams, data_frame_1, servers, mu_inter, mu_intra, scenario)
+cluster1 = Cluster("Cluster1", (45.40996, 11.89261, 0), num_ues, beam_size_km, num_beams, data_frame_1, servers, mu_inter, mu_intra, scenario, enable_elevation_threshold, elevation_threshold)
 clusters = [cluster1] 
 
 # (# year, month, day, hour, minute, second)

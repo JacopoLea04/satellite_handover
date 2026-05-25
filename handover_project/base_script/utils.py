@@ -195,7 +195,7 @@ def compute_cell_boundaries_lla(center_lat, center_lon, beam_size_m, beams_per_c
 
     return (nw_lat, nw_lon), (se_lat, se_lon)
 
-def check_clusters_visibility(cluster_centers_positions, cell_boundaries, cell_dim_beams):
+def check_clusters_visibility(cluster_centers_positions, cell_boundaries, cell_dim_beams, enable_elevation = False, elevation_threshold = 0, sat_lat = 0, sat_lon = 0, sat_alt = 0):
     """
     checks which of the cluster centers are within the satellite cell boundaries defined by the north-west and
     south-east corners latitude and longitude in decimal degrees.
@@ -205,6 +205,8 @@ def check_clusters_visibility(cluster_centers_positions, cell_boundaries, cell_d
         10  11  12  13  14
         15  16  17  18  19
         20  21  22  23  24
+    If the enableElevation flag is set, the function also checks if the satellite elevation angle is above a certain
+    threshold for each cluster center, and only considers visible those clusters that are above the elevation threshold.
 
     Args:
         cluster_centers_positions (list of tuples): list of (lat, lon, alt) coordinates of the cluster centers
@@ -214,6 +216,12 @@ def check_clusters_visibility(cluster_centers_positions, cell_boundaries, cell_d
             all in decimal degrees.
         cell_dim_beams (int): number of beams in the cell in one direction.
             e.g., if cell_dim_beams = 3, the cell is 3 beams wide and 3 beams tall, totalling 9 beams.
+        enable_elevation (bool): if True, the function also checks the satellite elevation angle for each cluster center,
+            and only considers visible those clusters that are above the elevation threshold.
+        elevation_threshold (float): elevation angle threshold in degrees, only clusters with satellite elevation above
+            this threshold are considered visible
+        sat_lat (float): latitude of the satellite in decimal degrees
+        sat_lon (float): longitude of the satellite in decimal degrees
     Returns:
         numpy.ndarray: matrix with indices of the cluster centers that are within the cell boundaries.
     """
@@ -225,16 +233,54 @@ def check_clusters_visibility(cluster_centers_positions, cell_boundaries, cell_d
     rind = 0
     for index, (lat, lon, alt) in enumerate(cluster_centers_positions):
         if nw_lat >= lat >= se_lat and nw_lon <= lon <= se_lon:
-            cluster_row.append(index)
+            if enable_elevation:
+                sat_elevation = ChannelParameters.elevation_angle_deg(lat, lon, sat_lat, sat_lon, sat_alt)
+                if sat_elevation >= elevation_threshold:
+                    cluster_row.append(index)
+                else:
+                    cluster_row.append(-1)
+            else:
+                cluster_row.append(index)
+        
         rind += 1
         if rind == cell_dim_beams:
             visible_clusters_indices.append(cluster_row)
             cluster_row = []
             rind = 0
     visible_clusters_indices = list(filter(None, visible_clusters_indices))
+    
     visible_clusters_indices_matrix = np.array(visible_clusters_indices)
+    out = np.array(strip_none_matrix(visible_clusters_indices_matrix))
+    if out.__contains__(-1):
+        print(f"visible clusters indices after stripping none: \n{out}")
+    return out
 
-    return visible_clusters_indices_matrix
+def strip_none_matrix(matrix):
+    # Handle empty matrix edge case
+    if matrix.size == 0:
+        return []
+
+    # 1. Keep rows that have at least one non-None value
+    valid_rows = [row for row in matrix if any(val is not -1 for val in row)]
+
+    # If the matrix is now empty, return early
+    if not valid_rows:
+        return []
+
+    # 2. Find the indices of columns that have at least one non-None value
+    num_cols = len(valid_rows[0])
+    valid_col_indices = [
+        col_idx for col_idx in range(num_cols) 
+        if any(row[col_idx] is not -1 for row in valid_rows)
+    ]
+
+    # 3. Build the final matrix keeping only the valid columns
+    cleaned_matrix = [
+        [row[col_idx] for col_idx in valid_col_indices] 
+        for row in valid_rows
+    ]
+
+    return cleaned_matrix
 
 def get_coverage_beam_indices_matrix(visible_clusters_indices_matrix, cell_dim_beams):
     """

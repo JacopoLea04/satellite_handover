@@ -38,15 +38,17 @@ save_plot_values = True
 # ================================================================================================
 
 # dataframes parameters
-df_name = "50km_100beams_sc9_padova.csv"
+df_name = "100km_25beams_sc9_padova.csv"
 padova_lat, padova_lon = 45.40996, 11.89261
 dfnames = [df_name] 
 fnames = ["padova"]
+enable_elevation_threshold = True
+elevation_threshold = 30
 
 # simulation parameters
 output_folder = "plots"
 period = '20 min'
-num_ues_label = 400
+num_ues_label = 100
 simTimeStart = datetime(2026, 2, 19, 0, 0, 0) 
 simTimeEnd = datetime(2026, 2, 19, 0, 20, 0) 
 time_step = timedelta(seconds=1)
@@ -131,9 +133,9 @@ if(visible_sats_over_time):
             visible_sats = utils.get_satellites_at_time(data_frame, time)
             visible_sats_for_each_minicluster = [[] for _ in range(num_beams)]
             for sat in visible_sats:
-                sat_lat, sat_lon = sat[1], sat[2]
+                sat_lat, sat_lon, sat_alt = sat[1], sat[2], sat[3]
                 sat_cell_boundaries = utils.compute_cell_boundaries_lla(sat_lat, sat_lon, beam_size_km*1000, int(np.sqrt(num_beams)))
-                visible_clusters_indices = utils.check_clusters_visibility(padova_positions, sat_cell_boundaries, int(np.sqrt(num_beams)))
+                visible_clusters_indices = utils.check_clusters_visibility(padova_positions, sat_cell_boundaries, int(np.sqrt(num_beams)), enable_elevation_threshold, elevation_threshold, sat_lat, sat_lon, sat_alt)
                 if(len(visible_clusters_indices) == 0):
                     continue
                 satellite_beam_indices = utils.get_coverage_beam_indices_matrix(visible_clusters_indices, int(np.sqrt(num_beams)))
@@ -143,7 +145,8 @@ if(visible_sats_over_time):
                     for jj in range(cols):
                         idx_cluster = visible_clusters_indices[ii][jj]
                         idx_sat_beam = satellite_beam_indices[ii][jj]
-                        visible_sats_for_each_minicluster[idx_cluster].append((sat, idx_sat_beam))
+                        if (idx_sat_beam != -1):
+                            visible_sats_for_each_minicluster[idx_cluster].append((sat, idx_sat_beam))
 
             visible_sat_beam_NO.append(len(visible_sats_for_each_minicluster[0]))
             visible_sat_beam_center.append(len(visible_sats_for_each_minicluster[int(num_beams/2)]))

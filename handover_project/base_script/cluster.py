@@ -9,12 +9,14 @@ from satellite import Satellite
 import numpy as np
 
 class Cluster:
-    def __init__(self, name, position, num_ues, beam_size_km, num_beams, satellites_frame, servers, mu_inter, mu_intra, scenario):
+    def __init__(self, name, position, num_ues, beam_size_km, num_beams, satellites_frame, servers, mu_inter, mu_intra, scenario, enable_elevation = False, elevation_threshold = 0):
         self.name = name
         self.position = position
         self.num_ues = num_ues
         self.beam_size_km = beam_size_km
         self.num_beams = num_beams
+        self.enable_elevation = enable_elevation
+        self.elevation_threshold = elevation_threshold
         self.frame = satellites_frame
         self.sat_servers = servers
         self.sat_mu_inter = mu_inter
@@ -99,7 +101,8 @@ class Cluster:
                 for jj in range(cols):
                     idx_cluster = visible_clusters_indices[ii][jj]
                     idx_sat_beam = satellite_beam_indices[ii][jj]
-                    visible_sats_for_each_minicluster[idx_cluster].append((sat, idx_sat_beam))
+                    if(idx_sat_beam != -1):
+                        visible_sats_for_each_minicluster[idx_cluster].append((sat, idx_sat_beam))
         
         for index, mini_cluster in enumerate(self.list_beams):
             mini_cluster.initial_connection_phase(visible_sats_for_each_minicluster[index], time, service_sats, handover_timer)
@@ -117,7 +120,7 @@ class Cluster:
 
             visible_sats_for_each_minicluster is a list of lists, where each element is a list containing the visible 
             satellites for the corresponding mini-cluster as follows: [(sat1, idx_sat_beam1), (sat2, idx_sat_beam2), ...] 
-            Specifically, satX is a tuple with the satellite info (name, lat, lon) and idx_sat_beamX is the index of the 
+            Specifically, satX is a tuple with the satellite info (name, lat, lon, alt) and idx_sat_beamX is the index of the 
             beam of the satellite that covers the mini-cluster.
 
             For example, if we have 3 mini-clusters, the structure of visible_sats_for_each_minicluster will be as follows:
@@ -144,9 +147,9 @@ class Cluster:
         visible_sats = utils.get_satellites_at_time(self.frame, round_time)
         visible_sats_for_each_minicluster = [[] for _ in range(self.num_beams)]
         for sat in visible_sats:
-            sat_lat, sat_lon = sat[1], sat[2]
+            sat_lat, sat_lon, sat_alt = sat[1], sat[2], sat[3]
             sat_cell_boundaries = utils.compute_cell_boundaries_lla(sat_lat, sat_lon, self.beam_size_km*1000, int(np.sqrt(self.num_beams)))
-            visible_clusters_indices = utils.check_clusters_visibility(self.positions, sat_cell_boundaries, int(np.sqrt(self.num_beams)))
+            visible_clusters_indices = utils.check_clusters_visibility(self.positions, sat_cell_boundaries, int(np.sqrt(self.num_beams)), self.enable_elevation, self.elevation_threshold, sat_lat, sat_lon, sat_alt)
 
             # case when the current examinated satellite illimunate only a portion of a specific mini-cluster but not its center, i.e., it
             # illuminates less then 50%, so we conclude that mini-cluster cannot be served by that satellite beam.
@@ -159,7 +162,8 @@ class Cluster:
                 for jj in range(cols):
                     idx_cluster = visible_clusters_indices[ii][jj]
                     idx_sat_beam = satellite_beam_indices[ii][jj]
-                    visible_sats_for_each_minicluster[idx_cluster].append((sat, idx_sat_beam))
+                    if(idx_sat_beam != -1):
+                        visible_sats_for_each_minicluster[idx_cluster].append((sat, idx_sat_beam))
 
         # extract the rows of the dataframe related to the current time instant
         if isinstance(round_time, datetime):
@@ -292,9 +296,9 @@ class Cluster:
                     ul_ue_throughput = ul_ue_throughput * (1 - ue.remaining_handover_execution_time/1000)
                     ue.remaining_handover_execution_time = 0
 
-                dl_ue_throughput *= (1 - self.scenario['3gpp_overhead_dl'])
+                dl_ue_throughput *= (1 - self.scenario['3gpp_overhead_dl']) # apply the 3GPP overhead to the throughput
                 ul_ue_throughput *= (1 - self.scenario['3gpp_overhead_ul'])
-                
+
                 thr_info = {
                         "time": target_time,
                         "ue.id": ue.id,
