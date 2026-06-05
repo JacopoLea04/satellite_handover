@@ -11,13 +11,13 @@ import utils
 
 
 # initial configuration
-df_name_1 = "100km_25beams_sc9_padova.csv"
+df_name_1 = "250km_sc9_padova.csv"  #"100km_25beams_sc9_padova.csv"
 ho_condition_1 = ("ELEVATION", 30)
 sat_selection_condition_1 = "AVL_THR"
 enable_elevation_threshold = True
 elevation_threshold = 30
 
-simTime = timedelta(minutes=20)
+simTime = timedelta(minutes=25)
 num_ues = 100
 mu_inter = 30 * 1e-3
 mu_intra = 1 * 1e-3 
@@ -45,10 +45,12 @@ handover_timer = 40
 
 # retrive parameters
 data_frame_1 = pd.read_csv(df_name_1)
-numbers = re.findall(r'\d+', df_name_1)
-beam_size_km = int(numbers[0])
-num_beams = int(numbers[1])
+#numbers = re.findall(r'\d+', df_name_1)
+#beam_size_km = int(numbers[0])
+#num_beams = int(numbers[1])
 
+beam_size_km = 250
+num_beams = 25
 
 # parsing input parameters 
 parser = argparse.ArgumentParser(description="Satellite Simulation Script")

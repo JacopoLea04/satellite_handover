@@ -38,7 +38,7 @@ save_plot_values = True
 # ================================================================================================
 
 # dataframes parameters
-df_name = "100km_25beams_sc9_padova.csv"
+df_name = "250km_sc9_padova.csv"
 padova_lat, padova_lon = 45.40996, 11.89261
 dfnames = [df_name] 
 fnames = ["padova"]
@@ -47,7 +47,7 @@ elevation_threshold = 30
 
 # simulation parameters
 output_folder = "plots"
-period = '20 min'
+period = '25 min'
 num_ues_label = 100
 simTimeStart = datetime(2026, 2, 19, 0, 0, 0) 
 simTimeEnd = datetime(2026, 2, 19, 0, 20, 0) 
@@ -56,9 +56,11 @@ num_ues_to_plot = 1
 
 
 # retrive parameterts
-numbers = re.findall(r'\d+', df_name)
-beam_size_km = int(numbers[0])
-num_beams = int(numbers[1])
+#numbers = re.findall(r'\d+', df_name)
+#beam_size_km = int(numbers[0])
+#num_beams = int(numbers[1])
+beam_size_km = 250
+num_beams = 25
 padova_positions = utils.calculate_beams_grid(padova_lat, padova_lon, beam_size_km, num_beams)
 
 # ================================================================================================

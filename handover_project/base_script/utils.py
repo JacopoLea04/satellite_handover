@@ -439,6 +439,12 @@ def get_elevation(frame, target_time, satellite_name, mini_cluster_position):
     try:
         matched_satellite = frame[frame['time'].astype(str) == target_time_str]
         matched_satellite = matched_satellite[matched_satellite['sat_name'].astype(str) == satellite_name]
+        
+        if matched_satellite.empty:
+            #print(f"Error: No matching satellite found for time {target_time_str} and satellite name {satellite_name}")
+            return -1.0
+
+        
         sat_lat = float(matched_satellite['sat_lat'].iloc[0])
         sat_long = float(matched_satellite['sat_lon'].iloc[0])
         sat_alt_m = float(matched_satellite['sat_height'].iloc[0])
@@ -453,6 +459,10 @@ def get_elevation(frame, target_time, satellite_name, mini_cluster_position):
         print(f"Error: Missing expected column in DataFrame - {e}")
     except ValueError as e:
         print(f"Error: Data format issue (e.g., empty or non-numeric values) - {e}")
+    except IndexError as e:
+        # Aggiunta di sicurezza in caso di accessi anomali futuri
+        print(f"Error: Index out of bounds - {e}")
+        return -1.0
         
     return sat_elev
 
@@ -576,6 +586,13 @@ def compute_doppler_shift(ue_pos, old_pos, curr_pos, fut_pos, scenario):
         doppler_shift_dl: Doppler shift in Hz
         doppler_shift_ul: Doppler shift in Hz
     """ 
+    if curr_pos is None or curr_pos[0] is None:
+        return 0.0, 0.0
+    
+    if old_pos is None or old_pos[0] is None:
+        old_pos = curr_pos
+    if fut_pos is None or fut_pos[0] is None:
+        fut_pos = curr_pos
 
     freq_ul = scenario['freq_ul']
     freq_dl = scenario['freq_dl']

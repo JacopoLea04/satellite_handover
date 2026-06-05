@@ -87,7 +87,7 @@ def main():
     # simulation parameters
     # epoch_time = np.datetime64('2025-06-08T00:00:00')   # epoch time for position computation [y, m, d, h, m, s]
     epoch_time = np.datetime64('2026-02-19T00:00:00')   # epoch time for position computation [y, m, d, h, m, s]
-    simulation_duration_seconds = 3600                  # total simulation duration [s]
+    simulation_duration_seconds = 1800                  # total simulation duration [s]
     simulation_step_seconds = 1                         # time step for position computation [s]
     # lat_ue, lon_ue = 18.29817, -64.82818                # ue location [decimal degrees]
     # cluster locations:

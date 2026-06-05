@@ -210,7 +210,11 @@ class Cluster:
                         ue.time_to_next_handover -= 1 # decrease the time to next handover by 1 second
                 elif(event == "ELEVATION"):
                     elev_threshold = ho_condition[1]
-                    sat_elev = utils.get_elevation(curr_time_df, round_time, curr_sat.name, mini_cluster.position)
+                    if curr_sat is None:
+                        sat_elev = -1
+                    else:
+                        sat_elev = utils.get_elevation(curr_time_df, round_time, curr_sat.name, mini_cluster.position)
+                    
                     if(sat_elev < elev_threshold):
                         ue.inter_handover_flag = True
 
