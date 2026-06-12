@@ -388,15 +388,29 @@ def compute_shannon_from_snr(snr_dl_db, snr_ul_db, parameters):
     return dl_thr_mbps, ul_thr_mbps
 
 def reverse_snr_from_thr(dl_ue_thr, ul_ue_thr, parameters):
-    snr_dl_linear = (2 ** (dl_ue_thr * 1e6 / parameters['bw_dl']) - 1)
-    snr_ul_linear = (2 ** (ul_ue_thr * 1e6 / parameters['bw_ul']) - 1)
+    # Protezione Matematica per il Downlink
+    if dl_ue_thr <= 0.0:
+        snr_dl_db = -100.0  # Canale morto (approssimazione di -infinito)
+    else:
+        snr_dl_linear = (2 ** (dl_ue_thr * 1e6 / parameters['bw_dl']) - 1)
+        if snr_dl_linear <= 0:
+            snr_dl_db = -100.0
+        else:
+            snr_dl_db = round(10 * math.log10(snr_dl_linear), 4)
 
-    snr_dl_db = round(10 * math.log10(snr_dl_linear), 4)
-    snr_ul_db = round(10 * math.log10(snr_ul_linear), 4)
+    # Protezione Matematica per l'Uplink
+    if ul_ue_thr <= 0.0:
+        snr_ul_db = -100.0
+    else:
+        snr_ul_linear = (2 ** (ul_ue_thr * 1e6 / parameters['bw_ul']) - 1)
+        if snr_ul_linear <= 0:
+            snr_ul_db = -100.0
+        else:
+            snr_ul_db = round(10 * math.log10(snr_ul_linear), 4)
 
     return snr_dl_db, snr_ul_db
 
-def get_max_beam_throughput(frame, target_time,satellite_name, mini_cluster_position, scenario):
+def get_max_beam_throughput(frame, target_time, satellite_name, mini_cluster_position, scenario):
     mini_cluster_lat, mini_cluster_lon, _ = mini_cluster_position
     dl_total_throughput, ul_total_throughput = 0, 0
     if isinstance(target_time, datetime):
@@ -406,6 +420,11 @@ def get_max_beam_throughput(frame, target_time,satellite_name, mini_cluster_posi
     try:
         matched_satellite = frame[frame['time'].astype(str) == target_time_str]
         matched_satellite = matched_satellite[matched_satellite['sat_name'].astype(str) == satellite_name]
+        
+        # FIX: Se il satellite è tramontato, il throughput fisico scende a zero
+        if matched_satellite.empty:
+            return 0.0, 0.0
+
         sat_lat = float(matched_satellite['sat_lat'].iloc[0])
         sat_lon = float(matched_satellite['sat_lon'].iloc[0])
         sat_alt_m = float(matched_satellite['sat_height'].iloc[0])
@@ -416,6 +435,10 @@ def get_max_beam_throughput(frame, target_time,satellite_name, mini_cluster_posi
         print(f"Error: Missing expected column in DataFrame - {e}")
     except ValueError as e:
         print(f"Error: Data format issue (e.g., empty or non-numeric values) - {e}")
+    except IndexError as e:
+        # Fallback estremo per Pandas
+        return 0.0, 0.0
+        
     return dl_total_throughput, ul_total_throughput
 
 
@@ -469,14 +492,6 @@ def get_elevation(frame, target_time, satellite_name, mini_cluster_position):
 def get_noisy_snr(frame, target_time, satellite_name, mini_cluster_position, parameters):
     """
     Compute the dl and ul snr given the minicluster and sat positions.
-    Args:
-        frame: the dataframe containing the constellation information over time
-        satellite_name: name of the satellite we want to compute the snr
-        mini_cluster_position: location of the ue we want to compute the snr
-        parameters: specify the scenario (ex. sc6_parameters or sc9_parameters)
-    Returns:
-        snr_dl_db: the actual dl snr in dB
-        snr_ul_db: the actual ul snr in dB
     """
     mini_cluster_lat, mini_cluster_lon, _ = mini_cluster_position
     if isinstance(target_time, datetime):
@@ -486,6 +501,11 @@ def get_noisy_snr(frame, target_time, satellite_name, mini_cluster_position, par
     try:
         matched_satellite = frame[frame['time'].astype(str) == target_time_str]
         matched_satellite = matched_satellite[matched_satellite['sat_name'].astype(str) == satellite_name]
+        
+        # FIX: Se il satellite scompare, l'SNR crolla a zero
+        if matched_satellite.empty:
+            return 0.0, 0.0
+            
         sat_lat = float(matched_satellite['sat_lat'].iloc[0])
         sat_lon = float(matched_satellite['sat_lon'].iloc[0])
         sat_alt_m = float(matched_satellite['sat_height'].iloc[0])
@@ -494,8 +514,13 @@ def get_noisy_snr(frame, target_time, satellite_name, mini_cluster_position, par
         snr_dl_db, snr_ul_db = compute_snr(distance_m, parameters)
     except KeyError as e:
         print(f"Error: Missing expected column in DataFrame - {e}")
+        return 0.0, 0.0
     except ValueError as e:
         print(f"Error: Data format issue (e.g., empty or non-numeric values) - {e}")
+        return 0.0, 0.0
+    except IndexError as e:
+        return 0.0, 0.0
+        
     return snr_dl_db, snr_ul_db
    
 def get_visibility_time(sat_name, target_time, df):

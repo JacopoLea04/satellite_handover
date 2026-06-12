@@ -33,8 +33,19 @@ get_throuthput_ho_v2 = True
 ping_pong_handovers = True
 # 9. Save the results into a csv
 save_plot_values = True
-
-
+# Metti True se vuoi processare i risultati del nuovo algoritmo MADM_PREHO.
+# Metti False se vuoi processare i risultati del simulatore standard AVL_THR (Baseline).
+USE_PREHO_DATA = True
+if USE_PREHO_DATA:
+    print("\n--- ANALISI DEI DATI PREDICTIVE HANDOVER (MADM_PREHO) ---")
+    dataframes_folder_suffix = " dataframes_preho"
+    throughput_folder_suffix = " throughput_preho"
+    output_folder = "plots_preho"
+else:
+    print("\n--- ANALISI DEI DATI BASELINE (GREEDY / AVL_THR) ---")
+    dataframes_folder_suffix = " dataframes"
+    throughput_folder_suffix = " throughput"
+    output_folder = "plots_baseline"
 # ================================================================================================
 
 # dataframes parameters
@@ -202,7 +213,7 @@ if(average_handover_rate):
     fig, ax = plt.subplots(figsize=(12, 6))
 
     for i, (df_name, fname) in enumerate(zip(dfnames, fnames)):
-        folder_path = Path("Cluster" + str(i+1) + " dataframes")
+        folder_path = Path("Cluster" + str(i+1) + dataframes_folder_suffix)
         intra_ho_count = []
         inter_ho_count = []
         
@@ -295,7 +306,7 @@ if(average_handover_duration):
     fig, ax = plt.subplots(figsize=(12, 6))
 
     for i, (df_name, fname) in enumerate(zip(dfnames, fnames)):
-        folder_path = Path("Cluster" + str(i+1) + " dataframes")
+        folder_path = Path("Cluster" + str(i+1) + dataframes_folder_suffix)
         intra_ho_duration = []
         inter_ho_duration = []
         
@@ -405,7 +416,7 @@ if(average_service_time):
     fig, ax = plt.subplots(figsize=(12, 6))
 
     for i, (df_name, fname) in enumerate(zip(dfnames, fnames)):
-        folder_path = Path("Cluster" + str(i+1) + " dataframes")
+        folder_path = Path("Cluster" + str(i+1) + dataframes_folder_suffix)
         
         # Master lists for this specific cluster
         cluster_beam_durations = []
@@ -541,11 +552,11 @@ if(average_service_time):
 # 5. Number of handover processes handled by each satellite
 if(ho_handled):
     print("5. Priting the average number of handover handled for each satellite ...")
-    folder_path = Path('Satellite dataframes')
+    folder_path = Path('Satellite' + dataframes_folder_suffix)
     intra_ho_count = []
     inter_ho_count = []
     num_sats = 0
-    fname = 'Satellites'
+    fname = 'Satellite'
 
     fig, ax = plt.subplots(figsize=(12, 6))
     
@@ -643,7 +654,7 @@ if(out_of_service):
     fig, ax = plt.subplots(figsize=(12, 6))
 
     for i, (df_name, fname) in enumerate(zip(dfnames, fnames)):
-        folder_path = Path("Cluster" + str(i+1) + " dataframes")
+        folder_path = Path("Cluster" + str(i+1) + dataframes_folder_suffix)
         
         # Master list for out-of-service durations for this cluster
         cluster_out_serv_durations = []
@@ -740,7 +751,7 @@ if(get_throuthput_ho_v2):
     fig, ax = plt.subplots(figsize=(12, 6))
 
     for i, (df_name, fname) in enumerate(zip(dfnames, fnames)):
-        folder_path = Path("Cluster" + str(i+1) + " throughput")
+        folder_path = Path("Cluster" + str(i+1) + throughput_folder_suffix)
         ues_thr = []
 
         for file_path in folder_path.glob('*.csv'):
@@ -749,6 +760,9 @@ if(get_throuthput_ho_v2):
             ues_thr.append(thr)
 
         # --- Fix: truncate all series to the shortest length ---
+        if not ues_thr:
+            print(f"No throughput data found for Cluster {i+1}. Skipping.")
+            continue
         min_len = min(len(t) for t in ues_thr)
         ues_thr = [t[:min_len] for t in ues_thr]
 
@@ -790,7 +804,7 @@ if(get_throuthput_ho_v2):
 # 9. Number of ping-pong handovers
 if(ping_pong_handovers):
     print("9. Printing the average number of ping-pong handovers ...")
-    folder_path = Path('Cluster1 dataframes')
+    folder_path = Path('Cluster1' + dataframes_folder_suffix)
     ping_pong_count = []
     num_ues = 0
     for file_path in folder_path.glob('*.csv'):

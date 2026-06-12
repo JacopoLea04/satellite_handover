@@ -1,6 +1,6 @@
 from pyclbr import Class
 from skyfield.api import load, EarthSatellite
-import heapq
+# Import rimosso: non usiamo più 'heapq' per simulare code intasate
 import random
 import pandas as pd
 import os
@@ -16,35 +16,28 @@ class Satellite:
 
 
     class HandoverManager:
-        # typical values for number of servers n and mean service time 1/mu could be the following:
-        # n = 8-16-32, mu = 1/30ms. These values can be adjusted to simulate different scenarios and 
-        # evaluate the associated performance impact. 
-        # note that the UE shall not be unable to communicate for the whole duration of the handover,
-        # only for the time it takes for the disconnection from the serving satellite and RACH to the target.
+        # In architettura SDN, la congestione è risolta a monte dal Temporal Trigger Spreading (TTS).
+        # Il server del satellite esegue deterministicamente il ritardo di propagazione puro.
         def __init__(self, satellite, servers, mu_inter, mu_intra):
-            # print(f"\n=== initializing hom for {satellite.name} ===")
             self.satellite = satellite
             self.servers = servers
             self.mu_inter = mu_inter
             self.mu_intra = mu_intra
-            self.events_queue_inter = [0.0] * servers
-            self.events_queue_intra = [0.0] * servers
-            heapq.heapify(self.events_queue_inter)
-            heapq.heapify(self.events_queue_intra)
+            # Nessuna coda stocastica. L'esecuzione è governata centralmente.
             self.handover_tracker = []
 
         def process_handover_intra(self, arrival_time, ue, curr_beam_index, dest_satellite, dest_beam_index):
             """
-            Generate the handover_info struct, and specifically the queue delay, for intra-handover.
+            Processa l'intra-handover. Durata puramente fisica (1 ms). Nessun accodamento.
             """
             event_type = "intra_ho"
-            # duration = random.expovariate(self.mu_intra)    
             duration = self.mu_intra # 1 ms
-            earliest_time = heapq.heappop(self.events_queue_intra)
+            
+            # Esecuzione istantanea rispetto al trigger SDN
             arrival_time_rel = arrival_time.timestamp()
-            start_time = max(arrival_time_rel, earliest_time)
+            start_time = arrival_time_rel
             end_time = start_time + duration
-            heapq.heappush(self.events_queue_intra, end_time)
+            
             start_time_dt = datetime.fromtimestamp(start_time)
             end_time_dt = datetime.fromtimestamp(end_time)
 
@@ -66,17 +59,16 @@ class Satellite:
 
         def process_handover_inter(self, arrival_time, ue, curr_beam_index, dest_satellite, dest_beam_index):
             """
-            Generate the handover_info struct, and specifically the queue delay, for inter-handover.
+            Processa l'inter-handover. Durata puramente fisica (30 ms). Nessun accodamento.
             """
-            
             event_type = "inter_ho"
-            # duration = random.expovariate(self.mu_inter)
             duration = self.mu_inter  # 30 ms
-            earliest_time = heapq.heappop(self.events_queue_inter)
+            
+            # Esecuzione istantanea rispetto al trigger SDN
             arrival_time_rel = arrival_time.timestamp()
-            start_time = max(arrival_time_rel, earliest_time)
+            start_time = arrival_time_rel
             end_time = start_time + duration
-            heapq.heappush(self.events_queue_inter, end_time)
+            
             start_time_dt = datetime.fromtimestamp(start_time)
             end_time_dt = datetime.fromtimestamp(end_time)
 
@@ -96,16 +88,14 @@ class Satellite:
 
             return handover_info
 
-
         def deactivate(self):
             """
             This function should be called once the satellite is no longer needed. It will save the output dataframe to a csv file.
             """
             df = pd.DataFrame(self.handover_tracker)
-            # print(f"\n=== saving output file for {self.satellite.name} ===")
             filename = f"{self.satellite.name}_handover_events.csv"
 
-            output_folder = "Satellite dataframes"
+            output_folder = "Satellite dataframes_preho"
             full_path = os.path.join(output_folder, filename)
             os.makedirs(output_folder, exist_ok=True)
 
@@ -148,15 +138,3 @@ class Satellite:
         height = subpoint.elevation.m
 
         return latitude, longitude, height
-
-
-# ========================= TO FIX =========================
-    
-"""
-
-    
-
-    def get_rate(self, frame, time):
-
-        return self.get_max_rate(frame, time) / self.load if self.load > 0 else 0
-"""

@@ -5,15 +5,27 @@ import argparse
 import os 
 import shutil
 import re
-
 from cluster import Cluster
 import utils
 
 
-# initial configuration
+# ==============================================================================
+# INITIAL CONFIGURATION
+# ==============================================================================
 df_name_1 = "250km_sc9_padova.csv"  #"100km_25beams_sc9_padova.csv"
 ho_condition_1 = ("ELEVATION", 30)
-sat_selection_condition_1 = "AVL_THR"
+
+# ==============================================================================
+# SAT SELECTION CONDITION (SDN ARCHITECTURE)
+# ==============================================================================
+# "MADM_PREHO": Attiva l'SDN Controller. Il sistema smette di essere reattivo e
+#               passa a un controllo globale. Costruisce la super-matrice dei pesi
+#               (tramite filtro EMA e MAUF asimmetrica), risolve l'ottimo globale
+#               tramite Algoritmo Ungherese (Kuhn-Munkres) e applica il Temporal
+#               Trigger Spreading (TTS) per evitare il collasso delle code (M/D/1 -> D/D/1).
+# Altre opzioni legacy: "RANDOM", "MAX_ELEVATION", "MAX_VISIBILITY", "AVL_THR"
+sat_selection_condition_1 = "MADM_PREHO"
+
 enable_elevation_threshold = True
 elevation_threshold = 30
 
@@ -25,42 +37,22 @@ servers = 1
 scenario = utils.sc9_parameters
 handover_timer = 40
 
-####################################
-########### ho_condition ###########
-####################################
-# ("SNR", dl_threshold, ul_threshold): if the SNR goes under certain thresholds then handover to a new satellite
-# ("ELEVATION", elev_threshold): if the elevation angle goes under certain thresholds then handover to a new satellite
-# ("TIMER", handover_timer): if not already triggered, handover to a new satellite after handover_timer seconds
-# ("VISIBILITY"): standard approach, no input needed, handover when satellite goes out of visibility
-
-###############################################
-########### sat_selection_condition ###########
-###############################################
-# "RANDOM": a random satellite within the ones in visibility
-# "MAX_ELEVATION": the satellite with the highest elevation angle from the current time instant
-# "MAX_VISIBILITY": the satellite with the longer visibility window from the current time instant
-# "AVL_THR": the satellite with the highest available throughput is selected as target satellite
-
-
 
 # retrive parameters
 data_frame_1 = pd.read_csv(df_name_1)
-#numbers = re.findall(r'\d+', df_name_1)
-#beam_size_km = int(numbers[0])
-#num_beams = int(numbers[1])
 
 beam_size_km = 250
 num_beams = 25
 
 # parsing input parameters 
-parser = argparse.ArgumentParser(description="Satellite Simulation Script")
+parser = argparse.ArgumentParser(description="Satellite SDN Simulation Script")
 parser.add_argument('--servers', type=int, default=servers, help='Number of servers')
 parser.add_argument('--num_ues', type=int, default=num_ues, help='Number of User Equipments')
 args= parser.parse_args()
 servers = args.servers
 num_ues = args.num_ues
 
-# (name, position, num_ues, satellites_frame, threshold_snr, satellite servers, satellite mu)
+# Inizializzazione del Cluster (che ora istanzia autonomamente l'SDN Controller)
 cluster1 = Cluster("Cluster1", (45.40996, 11.89261, 0), num_ues, beam_size_km, num_beams, data_frame_1, servers, mu_inter, mu_intra, scenario, enable_elevation_threshold, elevation_threshold)
 clusters = [cluster1] 
 
@@ -73,22 +65,23 @@ service_sats = {}
 for cluster in clusters:    
     cluster.initial_connection_phase(time, service_sats, handover_timer)
 
-
 # increment the time by 100 ms
 time += timedelta(seconds=1)
 
-total_iterations = int((end_sim_time - time).total_seconds()) # *1000 (sec --> ms) & /100 (every 100)
+total_iterations = int((end_sim_time - time).total_seconds())
 
-print("\nStarting Simulation...")
+print("\nStarting SDN-based Simulation...")
 
 with tqdm(total=total_iterations, desc="Simulating") as pbar:
     
-    # Monitor the SNR of the current connections and apply conditional handover if needed
+    # Loop Temporale Principale (Il Metronomo)
     while time < end_sim_time:
 
+        # Il monitor ora gestisce la telemetria, le esecuzioni passive e risveglia
+        # l'SDN Controller centrale ogni 5 secondi per l'ottimizzazione di rete.
         cluster1.monitor(time, service_sats, ho_condition_1, sat_selection_condition_1)
         
-        # Display the current time on the right side of the progress bar instead of printing it
+        # Display the current time on the right side of the progress bar
         pbar.set_postfix(time=time.strftime("%H:%M:%S"))
         
         # increment the time by 1 sec
@@ -100,15 +93,17 @@ with tqdm(total=total_iterations, desc="Simulating") as pbar:
 
 print("Simulation Complete!\n")
 
+# ==============================================================================
+# POST-PROCESSING & ANALYTICS
+# ==============================================================================
 print("Computing Doppler Shifts for all the UEs ...")
 
 total_iterations = num_ues
-with tqdm(total=total_iterations, desc="Simulating") as pbar:
+with tqdm(total=total_iterations, desc="Processing Analytics") as pbar:
     for cluster in clusters: 
         frame = cluster.frame
 
-        # in order to increase lookup speed, convert DataFrame to an O(1) lookup dictionary once per cluster
-        # we use zip() as it is very fast for iterating through pandas columns
+        # O(1) lookup dictionary
         sat_positions_map = {
             (str(sat), str(t)): (lat, lon, alt)
             for sat, t, lat, lon, alt in zip(
@@ -120,7 +115,6 @@ with tqdm(total=total_iterations, desc="Simulating") as pbar:
             )
         }
 
-        # cache timestamp: avoid recalculating time strings for the same time instant
         time_cache = {}
 
         for mini_cluster in cluster.list_beams:
@@ -133,7 +127,6 @@ with tqdm(total=total_iterations, desc="Simulating") as pbar:
                     time = line["time"]
                     sat_name = str(line["sat.id"])
 
-                    # fetch or compute time strings (Past, Present, Future)
                     if time not in time_cache:
                         if isinstance(time, datetime):
                             t_curr = time.strftime("%Y-%m-%d %H:%M:%S")
@@ -147,14 +140,11 @@ with tqdm(total=total_iterations, desc="Simulating") as pbar:
                     
                     t_old, t_curr, t_fut = time_cache[time]
 
-                    # retrieve positions instantly from the dictionary
-                    # .get() safely returns (None, None, None) if the key isn't found
                     default_pos = (None, None, None)
                     old_pos = sat_positions_map.get((sat_name, t_old), default_pos)
                     curr_pos = sat_positions_map.get((sat_name, t_curr), default_pos)
                     fut_pos = sat_positions_map.get((sat_name, t_fut), default_pos)
 
-                    # compute doppler shifts
                     doppler_dl, doppler_ul = utils.compute_doppler_shift(
                         ue_pos, old_pos, curr_pos, fut_pos, scenario
                     )
@@ -168,20 +158,18 @@ print("Computation completed!\n")
 
 print("Creating the folder with the ue dataframes ...")
 
-
 output_folders = (
-    [f"{cluster.name} dataframes" for cluster in clusters] +
-    [f"{cluster.name} throughput" for cluster in clusters] +
-    ["Satellite dataframes"]
+    [f"{cluster.name} dataframes_preho" for cluster in clusters] +
+    [f"{cluster.name} throughput_preho" for cluster in clusters] +
+    ["Satellite dataframes_preho"]
 )
 
-# if there are old results, delete them
 for folder in output_folders:
     if os.path.exists(folder):
         shutil.rmtree(folder)
 
 total_iterations = len(service_sats)
-with tqdm(total=total_iterations, desc="Simulating") as pbar:
+with tqdm(total=total_iterations, desc="Saving Satellites") as pbar:
     for name, sat in service_sats.items():
         sat.deactivate()
         pbar.set_postfix(time=time.strftime("%H:%M:%S"))
@@ -192,7 +180,7 @@ print("Folder created!\n")
 print("Creating the folder with the sat dataframes ...")
 
 total_iterations = num_ues
-with tqdm(total=total_iterations, desc="Simulating") as pbar:
+with tqdm(total=total_iterations, desc="Saving UEs") as pbar:
     for cluster in clusters:
         for mini_cluster in cluster.list_beams:
             for ue in mini_cluster.list_ues:
