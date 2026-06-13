@@ -5,7 +5,7 @@ import random
 import pandas as pd
 from datetime import timedelta
 from satellite import Satellite
-from channel_parameters import ChannelParameters # Fondamentale per la fisica reale
+from channel_parameters import ChannelParameters 
 
 class SDN_Controller:
     def __init__(self, cluster, scenario, dataframe):
@@ -15,6 +15,22 @@ class SDN_Controller:
         self.WATER_FILLING_LIMIT = 15.0 
         self.INTRA_HO_PENALTY = 1.0     
         self.INTER_HO_PENALTY = 0.70    
+
+        # =====================================================================
+        # OTTIMIZZAZIONE COMPUTAZIONALE: COSTRUZIONE DELLA HASH MAP (CACHE O(1))
+        # =====================================================================
+        print("\n[SDN] Inizializzazione: Generazione della tabella Hash per la telemetria orbitale...")
+        self.orbit_cache = {}
+        
+        # L'uso di itertuples() è infinitamente più veloce rispetto a iterrows() in Pandas
+        for row in dataframe.itertuples():
+            # Creiamo una chiave composita unica (timestamp, nome_satellite)
+            # Convertiamo preventivamente in stringa per evitare lookup ambigui
+            key = (str(row.time), str(row.sat_name))
+            # Memorizziamo la tupla fisica (latitudine, longitudine, altezza)
+            self.orbit_cache[key] = (float(row.sat_lat), float(row.sat_lon), float(row.sat_height))
+            
+        print(f"[SDN] Tabella Hash completata! {len(self.orbit_cache)} stati orbitali indicizzati a costo O(1).\n")
 
     def run_optimization(self, time, service_sats, visible_sats_for_each_minicluster):
         all_ues = []
@@ -56,15 +72,12 @@ class SDN_Controller:
                 })
 
         num_virtual_beams = len(virtual_beams)
-        
-        # Inizializziamo con una penalità immensa (1000.0) per impedire le connessioni fuori copertura
         cost_matrix = np.full((num_ues, num_virtual_beams), 1000.0)
 
         for i, (ue, mini_cluster) in enumerate(all_ues):
             curr_sat_obj, curr_beam_idx = ue.get_connection_info()
             curr_sat_name = curr_sat_obj.name if curr_sat_obj else None
             
-            # Recuperiamo i satelliti VERAMENTE visibili da QUESTO minicluster
             valid_targets = visible_sats_for_each_minicluster[mini_cluster.index]
             valid_signatures = {f"{sat_tuple[0]}_{b_idx}" for sat_tuple, b_idx in valid_targets}
             
@@ -75,68 +88,55 @@ class SDN_Controller:
                 target_beam_idx = v_beam['beam_idx']
                 sig = f"{target_sat_name}_{target_beam_idx}"
                 
-                # 1. BARRIERA DI COPERTURA (Anti-Fantasma)
                 if sig not in valid_signatures:
-                    continue # Lascia 1000.0, l'Ungherese non lo sceglierà mai
+                    continue 
                 
-                # 2. CALCOLO FISICO REALE CON DERIVATA DELL'ELEVAZIONE (LOOK-AHEAD)
                 target_sat_lat = v_beam['sat_tuple'][1]
                 target_sat_lon = v_beam['sat_tuple'][2]
                 target_sat_alt = v_beam['sat_tuple'][3]
                 
                 link_elev = ChannelParameters.elevation_angle_deg(mc_lat, mc_lon, target_sat_lat, target_sat_lon, target_sat_alt)
                 
-                # Calcolo della derivata predittiva (guardando 1 secondo nel futuro nel dataframe)
+                # =====================================================================
+                # OTTIMIZZAZIONE INNIDATA: SOSTITUZIONE DEL LOOKUP PANDAS CON CACHE O(1)
+                # =====================================================================
                 try:
                     time_future = time + timedelta(seconds=1)
-                    # Cerchiamo la posizione futura del satellite target nel vettore di stato globale
                     t_fut_str = time_future.strftime("%Y-%m-%d %H:%M:%S") if hasattr(time_future, 'strftime') else str(time_future)
-                    matched_future = self.df[(self.df['time'].astype(str) == t_fut_str) & (self.df['sat_name'].astype(str) == target_sat_name)]
                     
-                    if not matched_future.empty:
-                        f_lat = float(matched_future['sat_lat'].iloc[0])
-                        f_lon = float(matched_future['sat_lon'].iloc[0])
-                        f_alt = float(matched_future['sat_height'].iloc[0])
+                    # Generiamo la chiave per l'accesso immediato alla memoria
+                    key_future = (t_fut_str, target_sat_name)
+                    
+                    if key_future in self.orbit_cache:
+                        # Estrazione istantanea delle coordinate future O(1)
+                        f_lat, f_lon, f_alt = self.orbit_cache[key_future]
                         elev_future = ChannelParameters.elevation_angle_deg(mc_lat, mc_lon, f_lat, f_lon, f_alt)
-                        
-                        # dTheta/dt
                         slope = elev_future - link_elev
                     else:
                         slope = 0.0
                 except:
                     slope = 0.0
 
-                # Punteggio pesato: 80% elevazione istantanea, 20% trend predittivo
                 alpha = 0.8
                 beta = 0.2
-                # Normalizziamo lo slope (assumendo variazioni massime di 0.5 gradi al secondo per costellazioni LEO)
                 slope_normalized = np.clip(slope / 0.5, -1.0, 1.0)
                 
                 w_score = alpha * (link_elev / 90.0) + beta * slope_normalized
-                w_score = max(0.01, w_score) # Evita punteggi negativi o nulli 
+                w_score = max(0.01, w_score) 
                 
-                # 3. ISTERESI ASIMMETRICA
                 if curr_sat_name is not None:
                     if target_sat_name == curr_sat_name:
                         w_score *= self.INTRA_HO_PENALTY
                     else:
                         w_score *= self.INTER_HO_PENALTY
                 
-                # 4. SHANNON SLICE (Water-Filling Perfetto)
                 slot_index = v_beam['slot'] 
                 bandwidth_slice = 1.0 / (slot_index + 1.0)
                 w_score *= bandwidth_slice
                         
                 cost_matrix[i, j] = -w_score
 
-        # =======================================================
-        # ALGORITMO UNGHERESE (Kuhn-Munkres)
-        # =======================================================
         row_ind, col_ind = linear_sum_assignment(cost_matrix)
-
-        # =======================================================
-        # TEMPORAL TRIGGER SPREADING (TTS)
-        # =======================================================
         current_time_offset = 0 
         
         for idx in range(len(row_ind)):
@@ -156,7 +156,6 @@ class SDN_Controller:
             else:
                 scheduled_time = time + timedelta(seconds=current_time_offset)
             
-            # Controllo Anti-Saturazione: se il costo è rimasto 1000.0, l'utente è fisicamente irraggiungibile
             if cost_matrix[ue_idx, v_beam_idx] == 1000.0:
                 ue.scheduled_handover = {'time': scheduled_time, 'sat': None, 'beam': None}
                 continue
