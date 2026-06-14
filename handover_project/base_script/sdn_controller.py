@@ -15,7 +15,7 @@ class SDN_Controller:
         self.WATER_FILLING_LIMIT = 15.0 
         self.INTRA_HO_PENALTY = 1.0     
         self.INTER_HO_PENALTY = 0.70    
-
+        
         # =====================================================================
         # OTTIMIZZAZIONE COMPUTAZIONALE: COSTRUZIONE DELLA HASH MAP (CACHE O(1))
         # =====================================================================
@@ -95,7 +95,7 @@ class SDN_Controller:
                 target_sat_lon = v_beam['sat_tuple'][2]
                 target_sat_alt = v_beam['sat_tuple'][3]
                 
-                link_elev = ChannelParameters.elevation_angle_deg(mc_lat, mc_lon, target_sat_lat, target_sat_lon, target_sat_alt)
+                link_elev_real = ChannelParameters.elevation_angle_deg(mc_lat, mc_lon, target_sat_lat, target_sat_lon, target_sat_alt)
                 
                 # =====================================================================
                 # OTTIMIZZAZIONE INNIDATA: SOSTITUZIONE DEL LOOKUP PANDAS CON CACHE O(1)
@@ -111,17 +111,17 @@ class SDN_Controller:
                         # Estrazione istantanea delle coordinate future O(1)
                         f_lat, f_lon, f_alt = self.orbit_cache[key_future]
                         elev_future = ChannelParameters.elevation_angle_deg(mc_lat, mc_lon, f_lat, f_lon, f_alt)
-                        slope = elev_future - link_elev
+                        slope = elev_future - link_elev_real
                     else:
                         slope = 0.0
                 except:
                     slope = 0.0
-
+                
                 alpha = 0.8
                 beta = 0.2
                 slope_normalized = np.clip(slope / 0.5, -1.0, 1.0)
                 
-                w_score = alpha * (link_elev / 90.0) + beta * slope_normalized
+                w_score = alpha * (link_elev_real / 90.0) + beta * slope_normalized
                 w_score = max(0.01, w_score) 
                 
                 if curr_sat_name is not None:
