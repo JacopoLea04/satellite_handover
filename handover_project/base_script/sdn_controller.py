@@ -15,7 +15,22 @@ class SDN_Controller:
         self.WATER_FILLING_LIMIT = 15.0 
         self.INTRA_HO_PENALTY = 1.0     
         self.INTER_HO_PENALTY = 0.70    
+        self.tau_c = 0.250  # Latenza del Control Plane (250 ms)
+        self.sigma_theta = 0.5  # Deviazione standard dell'errore di misura (0.5 gradi)
         
+        # Parametri Fading Atmosferico (Markov a 2 Stati)
+        self.dt_markov = 1.0 # Aggiornamento ogni secondo simulato
+        T_good = 45.0 # Durata media cielo sereno (secondi)
+        T_bad = 15.0  # Durata media copertura nuvolosa (secondi)
+        
+        self.p_gb = self.dt_markov / T_good
+        self.p_bg = self.dt_markov / T_bad
+        self.attenuation_bad_db = 6.0 # 6 dB di perdita in caso di nuvole/pioggia
+        
+        # Dizionario per mantenere la persistenza del meteo per ogni satellite: {sat_name: 'G' o 'B'}
+        self.weather_state = {}
+        self.last_weather_update_time = None
+
         # =====================================================================
         # OTTIMIZZAZIONE COMPUTAZIONALE: COSTRUZIONE DELLA HASH MAP (CACHE O(1))
         # =====================================================================
@@ -24,15 +39,36 @@ class SDN_Controller:
         
         # L'uso di itertuples() è infinitamente più veloce rispetto a iterrows() in Pandas
         for row in dataframe.itertuples():
-            # Creiamo una chiave composita unica (timestamp, nome_satellite)
-            # Convertiamo preventivamente in stringa per evitare lookup ambigui
             key = (str(row.time), str(row.sat_name))
-            # Memorizziamo la tupla fisica (latitudine, longitudine, altezza)
             self.orbit_cache[key] = (float(row.sat_lat), float(row.sat_lon), float(row.sat_height))
             
         print(f"[SDN] Tabella Hash completata! {len(self.orbit_cache)} stati orbitali indicizzati a costo O(1).\n")
 
     def run_optimization(self, time, service_sats, visible_sats_for_each_minicluster):
+        # =====================================================================
+        # 2A. AGGIORNAMENTO DEL METEO (Catena di Markov)
+        # Eseguito una sola volta all'inizio dell'ottimizzazione per il tempo 't'
+        # =====================================================================
+        if self.last_weather_update_time != time:
+            # Assicuriamoci che tutti i satelliti attualmente considerati abbiano uno stato
+            for sat_data in [item for sublist in visible_sats_for_each_minicluster for item in sublist]:
+                sat_n = sat_data[0][0]
+                if sat_n not in self.weather_state:
+                    self.weather_state[sat_n] = 'G' # Iniziamo col sereno
+                    
+            # Transizioni di stato di Markov
+            for sat_n in list(self.weather_state.keys()):
+                current_state = self.weather_state[sat_n]
+                rand_val = random.random()
+                if current_state == 'G':
+                    if rand_val < self.p_gb:
+                        self.weather_state[sat_n] = 'B'
+                else:
+                    if rand_val < self.p_bg:
+                        self.weather_state[sat_n] = 'G'
+                        
+            self.last_weather_update_time = time
+
         all_ues = []
         for mini_cluster in self.cluster.list_beams:
             for ue in mini_cluster.list_ues:
@@ -97,39 +133,57 @@ class SDN_Controller:
                 
                 link_elev_real = ChannelParameters.elevation_angle_deg(mc_lat, mc_lon, target_sat_lat, target_sat_lon, target_sat_alt)
                 
-                # =====================================================================
-                # OTTIMIZZAZIONE INNIDATA: SOSTITUZIONE DEL LOOKUP PANDAS CON CACHE O(1)
-                # =====================================================================
                 try:
                     time_future = time + timedelta(seconds=1)
                     t_fut_str = time_future.strftime("%Y-%m-%d %H:%M:%S") if hasattr(time_future, 'strftime') else str(time_future)
                     
-                    # Generiamo la chiave per l'accesso immediato alla memoria
                     key_future = (t_fut_str, target_sat_name)
                     
                     if key_future in self.orbit_cache:
-                        # Estrazione istantanea delle coordinate future O(1)
                         f_lat, f_lon, f_alt = self.orbit_cache[key_future]
                         elev_future = ChannelParameters.elevation_angle_deg(mc_lat, mc_lon, f_lat, f_lon, f_alt)
-                        slope = elev_future - link_elev_real
+                        slope_real = elev_future - link_elev_real
                     else:
-                        slope = 0.0
+                        slope_real = 0.0
                 except:
-                    slope = 0.0
+                    slope_real = 0.0
                 
+                # =====================================================================
+                # 2B. INIEZIONE STOCASTICA MULTI-DOMINIO
+                # =====================================================================
+                noise_theta = random.gauss(0, self.sigma_theta)
+                noise_slope = random.gauss(0, self.sigma_theta / 2.0)
+
+                # Percezione errata dell'SDN
+                link_elev_perceived = link_elev_real - (slope_real * self.tau_c) + noise_theta
+                link_elev_perceived = np.clip(link_elev_perceived, 0.0, 90.0)
+                
+                slope_perceived = slope_real + noise_slope
+                
+                # Penalità Meteo (Se il satellite è nella nuvola, dimezza l'utilità base)
+                weather_penalty_linear = 1.0 
+                if target_sat_name in self.weather_state and self.weather_state[target_sat_name] == 'B':
+                    weather_penalty_linear = 0.5 
+
                 alpha = 0.8
                 beta = 0.2
-                slope_normalized = np.clip(slope / 0.5, -1.0, 1.0)
+                slope_normalized = np.clip(slope_perceived / 0.5, -1.0, 1.0)
                 
-                w_score = alpha * (link_elev_real / 90.0) + beta * slope_normalized
+                # Calcolo punteggio finale
+                base_score = alpha * (link_elev_perceived / 90.0)
+                base_score *= weather_penalty_linear 
+                
+                w_score = base_score + beta * slope_normalized
                 w_score = max(0.01, w_score) 
                 
+                # Isteresi
                 if curr_sat_name is not None:
                     if target_sat_name == curr_sat_name:
                         w_score *= self.INTRA_HO_PENALTY
                     else:
                         w_score *= self.INTER_HO_PENALTY
                 
+                # Shannon Slice
                 slot_index = v_beam['slot'] 
                 bandwidth_slice = 1.0 / (slot_index + 1.0)
                 w_score *= bandwidth_slice
@@ -166,7 +220,9 @@ class SDN_Controller:
                     service_sats[target_sat_name] = sat
                 dest_sat_obj = service_sats[target_sat_name]
                 
-                if (idx % 3) == 0: 
+                # Allentiamo il Temporal Trigger Spreading (TTS) per stressare il canale RACH.
+                # Lasciando saltare 15 utenti nello stesso secondo, si innesca la congestione ALOHA.
+                if (idx % 15) == 0: 
                     current_time_offset += 1
                 
                 ue.scheduled_handover = {

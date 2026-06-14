@@ -31,6 +31,19 @@ class Cluster:
         self.positions = self.calculate_beams_grid(self.position[0], self.position[1], self.beam_size_km, self.num_beams)
         self.list_beams = [Beam(self.name + "-Beam" + str(ii+1), ii, self.positions[ii], int(num_ues/num_beams), self.beam_size_km, int(np.sqrt(num_beams)), servers, mu_inter, mu_intra) for ii in range(self.num_beams)]
 
+        # =====================================================================
+        # 3. IMPLEMENTAZIONE STOCASTICA: Traffico Bursty (Markov ON/OFF)
+        # =====================================================================
+        self.t_on_mean = 3.0   
+        self.t_off_mean = 12.0 
+        
+        self.p_on_to_off = 1.0 / self.t_on_mean
+        self.p_off_to_on = 1.0 / self.t_off_mean
+        
+        for mini_cluster in self.list_beams:
+            for ue in mini_cluster.list_ues:
+                ue.traffic_state = 'ON' if random.random() < (self.t_on_mean / (self.t_on_mean + self.t_off_mean)) else 'OFF'
+
     def calculate_beams_grid(self, center_lat, center_lon, beam_size_km, num_beams):
         grid_size = int(np.sqrt(num_beams))
         center_lat = np.float64(center_lat)
@@ -79,7 +92,6 @@ class Cluster:
         for index, mini_cluster in enumerate(self.list_beams):
             mini_cluster.initial_connection_phase(visible_sats_for_each_minicluster[index], time, service_sats, handover_timer)
                 
-        # Subito dopo l'assegnazione randomica iniziale, forziamo un'ottimizzazione SDN per bilanciare il carico
         self.sdn_controller.run_optimization(time, service_sats, visible_sats_for_each_minicluster)
         return service_sats
     
@@ -87,7 +99,6 @@ class Cluster:
     def monitor(self, time, service_sats, ho_condition, sat_selection_condition):
         round_time = (time + timedelta(microseconds=500000)).replace(microsecond=0)
 
-        # 1. Recupero Satelliti Visibili e Creazione Mapping
         visible_sats = utils.get_satellites_at_time(self.frame, round_time)
         visible_sats_for_each_minicluster = [[] for _ in range(self.num_beams)]
         
@@ -108,12 +119,17 @@ class Cluster:
                     if(idx_sat_beam != -1):
                         visible_sats_for_each_minicluster[idx_cluster].append((sat, idx_sat_beam))
 
-        # 2. Telemetria Fisica (Aggiornamento Filtri EMA degli UEs)
         for mini_cluster in self.list_beams:
             for ue in mini_cluster.list_ues:
                 curr_sat, curr_beam_index = ue.get_connection_info()
                 
-                # Simuliamo la lettura del canale con iniezione di rumore
+                if ue.traffic_state == 'ON':
+                    if random.random() < self.p_on_to_off:
+                        ue.traffic_state = 'OFF'
+                else:
+                    if random.random() < self.p_off_to_on:
+                        ue.traffic_state = 'ON'
+                
                 if curr_sat is not None:
                     try:
                         raw_snr_dl, raw_snr_ul = utils.get_snr(self.frame, round_time, curr_sat.name, mini_cluster.position, self.scenario)
@@ -125,38 +141,63 @@ class Cluster:
                 else:
                     raw_snr_dl, raw_snr_ul, raw_elev = 0, 0, 0
                 
-                # L'UE assorbe il rumore e aggiorna il suo stato interno
                 ue.update_ema_filters(raw_snr_dl, raw_snr_ul, raw_elev)
 
-                # 3. Esecuzione Passiva Ordini SDN
+        # =====================================================================
+        # 3A. MODELLO RACH (Random Access Channel) - Slotted ALOHA
+        # =====================================================================
+        rach_attempts = {}
+        for mini_cluster in self.list_beams:
+            for ue in mini_cluster.list_ues:
+                if getattr(ue, 'scheduled_handover', None) is not None:
+                    sched_time = ue.scheduled_handover['time']
+                    
+                    # BUG FIX: Controlliamo esplicitamente che 'sat' non sia None
+                    if sched_time <= time and ue.remaining_handover_execution_time == 0:
+                        target_sat_obj = ue.scheduled_handover['sat']
+                        if target_sat_obj is not None: # Solo se saltiamo su un satellite vero
+                            target_sat = target_sat_obj.name
+                            rach_attempts.setdefault(target_sat, []).append(ue)
+        
+        collided_ues = set()
+        rach_preambles = 64 
+        
+        for sat, ues_in_rach in rach_attempts.items():
+            if len(ues_in_rach) > 1:
+                preambles = [random.randint(1, rach_preambles) for _ in ues_in_rach]
+                for idx, ue in enumerate(ues_in_rach):
+                    if preambles.count(preambles[idx]) > 1:
+                        collided_ues.add(ue.id) 
+
+        # =====================================================================
+        # 3B. Esecuzione Ordini SDN e Applicazione Penalità di Backoff
+        # =====================================================================
+        for mini_cluster in self.list_beams:
+            for ue in mini_cluster.list_ues:
+                was_in_ho = ue.remaining_handover_execution_time > 0
+                
                 ue.execute_scheduled_handover(time)
+                
+                is_in_ho = ue.remaining_handover_execution_time > 0
+                
+                if (not was_in_ho) and is_in_ho and (ue.id in collided_ues):
+                    backoff_delay_ms = random.randint(500, 1500) 
+                    ue.remaining_handover_execution_time += backoff_delay_ms
 
-        # 4. Trigger Periodico del Control Plane (HPF)
-        # =====================================================================
-        # NUOVA FASE 4: TRIGGER DEL CONTROL PLANE (POLLING DINAMICO EVENT-DRIVEN)
-        # =====================================================================
         trigger_sdn = False
-
-        # Condizione A: Polling periodico standard (metronomo di sicurezza)
         if time.second % 5 == 0:
             trigger_sdn = True
-
-        # Condizione B: Polling Dinamico Predittivo (Anticipo sul tramonto)
         else:
             for mini_cluster in self.list_beams:
                 for ue in mini_cluster.list_ues:
                     curr_sat, _ = ue.get_connection_info()
-                    # Se l'utente è connesso e abbiamo lo storico EMA dell'elevazione
                     if curr_sat is not None and ue.ema_elevation is not None:
-                        # Recuperiamo l'elevazione al secondo precedente per stimare il delta
                         try:
                             elev_old = utils.get_elevation(self.frame, round_time - timedelta(seconds=1), curr_sat.name, mini_cluster.position)
                             derivata_elev = ue.ema_elevation - elev_old
                             
-                            # Se il satellite sta scendendo (derivata negativa)
                             if derivata_elev < 0:
                                 t_crit = (ue.ema_elevation - self.elevation_threshold) / abs(derivata_elev)
-                                # Se il satellite morirà entro il prossimo secondo, sveglia l'SDN ora!
                                 if t_crit <= 1.0:
                                     trigger_sdn = True
                                     break
@@ -165,14 +206,20 @@ class Cluster:
                 if trigger_sdn:
                     break
 
-        # Esecuzione del ciclo di ottimizzazione globale se una condizione è vera
         if trigger_sdn and sat_selection_condition == "MADM_PREHO":
             self.sdn_controller.run_optimization(time, service_sats, visible_sats_for_each_minicluster)
 
-        # 5. Salva la statistica alla fine del ciclo
         self.save_instant_throughput(time)
 
     def save_instant_throughput(self, target_time):
+        active_users_map = {}
+        for mc in self.list_beams:
+            for u in mc.list_ues:
+                sat_obj, b_idx = u.get_connection_info()
+                if sat_obj is not None and getattr(u, 'traffic_state', 'OFF') == 'ON':
+                    key = (sat_obj.name, b_idx)
+                    active_users_map[key] = active_users_map.get(key, 0) + 1
+
         for mini_cluster in self.list_beams:
             for ue in mini_cluster.list_ues:
                 serving_satellite, serving_beam_index = ue.get_connection_info()
@@ -190,11 +237,14 @@ class Cluster:
                     }
                     ue.thr_tracker.append(thr_info)
                     continue
-                max_dl_thr, max_ul_thr = utils.get_max_beam_throughput(self.frame, target_time, serving_satellite.name, mini_cluster.position, self.scenario)
-                connected_users = serving_satellite.connected_ues[serving_beam_index]
                 
-                dl_ue_throughput = max_dl_thr / connected_users
-                ul_ue_throughput = max_ul_thr / connected_users
+                max_dl_thr, max_ul_thr = utils.get_max_beam_throughput(self.frame, target_time, serving_satellite.name, mini_cluster.position, self.scenario)
+                
+                key = (serving_satellite.name, serving_beam_index)
+                active_users_in_beam = max(1, active_users_map.get(key, 0))
+                
+                dl_ue_throughput = max_dl_thr / active_users_in_beam
+                ul_ue_throughput = max_ul_thr / active_users_in_beam
                 
                 equivalent_snr_dl_db, equivalent_snr_ul_db = utils.reverse_snr_from_thr(dl_ue_throughput, ul_ue_throughput, self.scenario)
                 equivalent_snr_dl_db -= self.scenario['dl_db_headroom']
@@ -221,7 +271,7 @@ class Cluster:
                         "sat.id": serving_satellite.name,
                         "max_dl_thr": max_dl_thr,
                         "max_ul_thr": max_ul_thr,
-                        "connected_users": connected_users,
+                        "connected_users": active_users_in_beam, 
                         "ho_duration": ho_duration_ms,
                         "dl_thr": dl_ue_throughput,
                         "ul_thr": ul_ue_throughput

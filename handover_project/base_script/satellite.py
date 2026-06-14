@@ -1,6 +1,5 @@
 from pyclbr import Class
 from skyfield.api import load, EarthSatellite
-# Import rimosso: non usiamo più 'heapq' per simulare code intasate
 import random
 import pandas as pd
 import os
