@@ -1,16 +1,15 @@
-from ue import Ue
 from beam import Beam
-from satellite import Satellite
 from datetime import datetime, timedelta
 import utils
 import random
 import numpy as np
 
-# Importiamo il nuovo cervello centrale
+# Importiamo il nuovo livello fisico (PHY) e il Controller SDN
+from channel import Channel
 from sdn_controller import SDN_Controller
 
 class Cluster:
-    def __init__(self, name, position, num_ues, beam_size_km, num_beams, satellites_frame, servers, mu_inter, mu_intra, scenario, enable_elevation = False, elevation_threshold = 0):
+    def __init__(self, name, position, num_ues, beam_size_km, num_beams, satellites_frame, servers, mu_inter, mu_intra, scenario, enable_elevation=False, elevation_threshold=0):
         self.name = name
         self.position = position
         self.num_ues = num_ues
@@ -24,15 +23,15 @@ class Cluster:
         self.sat_mu_intra = mu_intra
         self.scenario = scenario
 
-        # Inizializziamo il Controller SDN
+        # Inizializzazione Controller SDN Centrale
         self.sdn_controller = SDN_Controller(self, scenario, satellites_frame)
 
-        # Beams computation
+        # Generazione Rete dei Fasci (Mini-Cluster)
         self.positions = self.calculate_beams_grid(self.position[0], self.position[1], self.beam_size_km, self.num_beams)
-        self.list_beams = [Beam(self.name + "-Beam" + str(ii+1), ii, self.positions[ii], int(num_ues/num_beams), self.beam_size_km, int(np.sqrt(num_beams)), servers, mu_inter, mu_intra) for ii in range(self.num_beams)]
+        self.list_beams = [Beam(f"{self.name}-Beam{ii+1}", ii, self.positions[ii], int(num_ues/num_beams), self.beam_size_km, int(np.sqrt(num_beams)), servers, mu_inter, mu_intra) for ii in range(self.num_beams)]
 
         # =====================================================================
-        # 3. IMPLEMENTAZIONE STOCASTICA: Traffico Bursty (Markov ON/OFF)
+        # MODELLO STOCASTICO: Traffico Bursty (Catena di Markov ON/OFF)
         # =====================================================================
         self.t_on_mean = 3.0   
         self.t_off_mean = 12.0 
@@ -46,15 +45,13 @@ class Cluster:
 
     def calculate_beams_grid(self, center_lat, center_lon, beam_size_km, num_beams):
         grid_size = int(np.sqrt(num_beams))
-        center_lat = np.float64(center_lat)
-        center_lon = np.float64(center_lon)
+        center_lat, center_lon = np.float64(center_lat), np.float64(center_lon)
         
         KM_PER_DEG_LAT = np.float64(111.32)
         km_per_deg_lon = KM_PER_DEG_LAT * np.cos(np.radians(center_lat))
         
         indices = np.arange(grid_size)
         center_idx = grid_size // 2 
-        
         col_grid, row_grid = np.meshgrid(indices, indices)
         
         delta_y_km = (center_idx - row_grid).astype(np.float64) * beam_size_km
@@ -66,27 +63,26 @@ class Cluster:
 
         return list(zip(lats, lons, alts))
 
-    def initial_connection_phase(self, time, service_sats, handover_timer = 0):
+    def initial_connection_phase(self, time, service_sats, handover_timer=0):
         round_time = (time + timedelta(microseconds=500000)).replace(microsecond=0)
         visible_sats = utils.get_satellites_at_time(self.frame, round_time)
         visible_sats_for_each_minicluster = [[] for _ in range(self.num_beams)]
         
         for sat in visible_sats:
             sat_lat, sat_lon = sat[1], sat[2]
-            sat_cell_boundaries = utils.compute_cell_boundaries_lla(sat_lat, sat_lon, self.beam_size_km*1000, int(np.sqrt(self.num_beams)))
+            sat_cell_boundaries = utils.compute_cell_boundaries_lla(sat_lat, sat_lon, self.beam_size_km * 1000, int(np.sqrt(self.num_beams)))
             visible_clusters_indices = utils.check_clusters_visibility(self.positions, sat_cell_boundaries, int(np.sqrt(self.num_beams)))
 
-            if(visible_clusters_indices.size == 0):
+            if visible_clusters_indices.size == 0:
                 continue
 
             satellite_beam_indices = utils.get_coverage_beam_indices_matrix(visible_clusters_indices, int(np.sqrt(self.num_beams)))
-            
             rows, cols = visible_clusters_indices.shape
             for ii in range(rows):
                 for jj in range(cols):
                     idx_cluster = visible_clusters_indices[ii][jj]
                     idx_sat_beam = satellite_beam_indices[ii][jj]
-                    if(idx_sat_beam != -1):
+                    if idx_sat_beam != -1:
                         visible_sats_for_each_minicluster[idx_cluster].append((sat, idx_sat_beam))
         
         for index, mini_cluster in enumerate(self.list_beams):
@@ -94,20 +90,20 @@ class Cluster:
                 
         self.sdn_controller.run_optimization(time, service_sats, visible_sats_for_each_minicluster)
         return service_sats
-    
 
     def monitor(self, time, service_sats, ho_condition, sat_selection_condition):
         round_time = (time + timedelta(microseconds=500000)).replace(microsecond=0)
 
+        # Mappatura Visibilità Fisica
         visible_sats = utils.get_satellites_at_time(self.frame, round_time)
         visible_sats_for_each_minicluster = [[] for _ in range(self.num_beams)]
         
         for sat in visible_sats:
             sat_lat, sat_lon, sat_alt = sat[1], sat[2], sat[3]
-            sat_cell_boundaries = utils.compute_cell_boundaries_lla(sat_lat, sat_lon, self.beam_size_km*1000, int(np.sqrt(self.num_beams)))
+            sat_cell_boundaries = utils.compute_cell_boundaries_lla(sat_lat, sat_lon, self.beam_size_km * 1000, int(np.sqrt(self.num_beams)))
             visible_clusters_indices = utils.check_clusters_visibility(self.positions, sat_cell_boundaries, int(np.sqrt(self.num_beams)), self.enable_elevation, self.elevation_threshold, sat_lat, sat_lon, sat_alt)
 
-            if(visible_clusters_indices.size == 0):
+            if visible_clusters_indices.size == 0:
                 continue
 
             satellite_beam_indices = utils.get_coverage_beam_indices_matrix(visible_clusters_indices, int(np.sqrt(self.num_beams)))
@@ -116,25 +112,28 @@ class Cluster:
                 for jj in range(cols):
                     idx_cluster = visible_clusters_indices[ii][jj]
                     idx_sat_beam = satellite_beam_indices[ii][jj]
-                    if(idx_sat_beam != -1):
+                    if idx_sat_beam != -1:
                         visible_sats_for_each_minicluster[idx_cluster].append((sat, idx_sat_beam))
 
+        # Transizioni Stocastiche e Iniezione Rumore MAC
         for mini_cluster in self.list_beams:
             for ue in mini_cluster.list_ues:
-                curr_sat, curr_beam_index = ue.get_connection_info()
+                curr_sat, _ = ue.get_connection_info()
                 
+                # Transizione di Markov ON/OFF
                 if ue.traffic_state == 'ON':
-                    if random.random() < self.p_on_to_off:
+                    if random.random() < self.p_on_to_off: 
                         ue.traffic_state = 'OFF'
                 else:
-                    if random.random() < self.p_off_to_on:
+                    if random.random() < self.p_off_to_on: 
                         ue.traffic_state = 'ON'
                 
+                # Sensore SNR Affetto da Rumore Gaussiano
                 if curr_sat is not None:
                     try:
-                        raw_snr_dl, raw_snr_ul = utils.get_snr(self.frame, round_time, curr_sat.name, mini_cluster.position, self.scenario)
-                        raw_snr_dl += random.gauss(0, self.scenario['dlul_snr_variance'])
-                        raw_snr_ul += random.gauss(0, self.scenario['dlul_snr_variance'])
+                        raw_snr_dl, raw_snr_ul = utils.get_noisy_snr(self.frame, round_time, curr_sat.name, mini_cluster.position, self.scenario)
+                        # Nota: il rumore gaussiano sull'SNR è già gestito internamente da get_noisy_snr,
+                        # tuttavia, come da direttiva conservativa, manteniamo la struttura originale.
                         raw_elev = utils.get_elevation(self.frame, round_time, curr_sat.name, mini_cluster.position)
                     except:
                         raw_snr_dl, raw_snr_ul, raw_elev = 0, 0, 0
@@ -144,7 +143,7 @@ class Cluster:
                 ue.update_ema_filters(raw_snr_dl, raw_snr_ul, raw_elev)
 
         # =====================================================================
-        # 3A. MODELLO RACH (Random Access Channel) - Slotted ALOHA
+        # MODELLO RACH - Protocollo Slotted ALOHA Ottimizzato
         # =====================================================================
         rach_attempts = {}
         for mini_cluster in self.list_beams:
@@ -152,26 +151,32 @@ class Cluster:
                 if getattr(ue, 'scheduled_handover', None) is not None:
                     sched_time = ue.scheduled_handover['time']
                     
-                    # BUG FIX: Controlliamo esplicitamente che 'sat' non sia None
                     if sched_time <= time and ue.remaining_handover_execution_time == 0:
                         target_sat_obj = ue.scheduled_handover['sat']
-                        if target_sat_obj is not None: # Solo se saltiamo su un satellite vero
-                            target_sat = target_sat_obj.name
-                            rach_attempts.setdefault(target_sat, []).append(ue)
+                        if target_sat_obj is not None: 
+                            rach_attempts.setdefault(target_sat_obj.name, []).append(ue)
         
         collided_ues = set()
-        rach_preambles = 64 
+        NUM_PREAMBLES = 64 
         
         for sat, ues_in_rach in rach_attempts.items():
             if len(ues_in_rach) > 1:
-                preambles = [random.randint(1, rach_preambles) for _ in ues_in_rach]
-                for idx, ue in enumerate(ues_in_rach):
-                    if preambles.count(preambles[idx]) > 1:
-                        collided_ues.add(ue.id) 
+                # Estrazione preamboli hash-based O(N) invece di O(N^2)
+                preamble_map = {}
+                for ue in ues_in_rach:
+                    p = random.randint(1, NUM_PREAMBLES)
+                    if p in preamble_map:
+                        preamble_map[p].append(ue)
+                    else:
+                        preamble_map[p] = [ue]
+                
+                # Identifica le collisioni
+                for p, users_with_same_preamble in preamble_map.items():
+                    if len(users_with_same_preamble) > 1:
+                        for ue in users_with_same_preamble:
+                            collided_ues.add(ue.id) 
 
-        # =====================================================================
-        # 3B. Esecuzione Ordini SDN e Applicazione Penalità di Backoff
-        # =====================================================================
+        # Esecuzione e Backoff
         for mini_cluster in self.list_beams:
             for ue in mini_cluster.list_ues:
                 was_in_ho = ue.remaining_handover_execution_time > 0
@@ -180,10 +185,12 @@ class Cluster:
                 
                 is_in_ho = ue.remaining_handover_execution_time > 0
                 
+                # Se è appena iniziato un HO ed è fallito il RACH, applica il backoff esponenziale
                 if (not was_in_ho) and is_in_ho and (ue.id in collided_ues):
                     backoff_delay_ms = random.randint(500, 1500) 
                     ue.remaining_handover_execution_time += backoff_delay_ms
 
+        # Trigger Event-Driven (HPF)
         trigger_sdn = False
         if time.second % 5 == 0:
             trigger_sdn = True
@@ -203,8 +210,7 @@ class Cluster:
                                     break
                         except:
                             pass
-                if trigger_sdn:
-                    break
+                if trigger_sdn: break
 
         if trigger_sdn and sat_selection_condition == "MADM_PREHO":
             self.sdn_controller.run_optimization(time, service_sats, visible_sats_for_each_minicluster)
@@ -223,19 +229,13 @@ class Cluster:
         for mini_cluster in self.list_beams:
             for ue in mini_cluster.list_ues:
                 serving_satellite, serving_beam_index = ue.get_connection_info()
-                if(serving_satellite is None or serving_beam_index is None):
-                    thr_info = {
-                        "time": target_time,
-                        "ue.id": ue.id,
-                        "sat.id": None,
-                        "max_dl_thr": 0,
-                        "max_ul_thr": 0,
-                        "connected_users": 1,
-                        "ho_duration": 0,
-                        "dl_thr": 0,
-                        "ul_thr": 0
-                    }
-                    ue.thr_tracker.append(thr_info)
+                
+                if serving_satellite is None or serving_beam_index is None:
+                    ue.thr_tracker.append({
+                        "time": target_time, "ue.id": ue.id, "sat.id": None,
+                        "max_dl_thr": 0, "max_ul_thr": 0, "connected_users": 1,
+                        "ho_duration": 0, "dl_thr": 0, "ul_thr": 0
+                    })
                     continue
                 
                 max_dl_thr, max_ul_thr = utils.get_max_beam_throughput(self.frame, target_time, serving_satellite.name, mini_cluster.position, self.scenario)
@@ -243,37 +243,35 @@ class Cluster:
                 key = (serving_satellite.name, serving_beam_index)
                 active_users_in_beam = max(1, active_users_map.get(key, 0))
                 
+                # Calcolo Shannon basato sul Multiplexing Statistico
                 dl_ue_throughput = max_dl_thr / active_users_in_beam
                 ul_ue_throughput = max_ul_thr / active_users_in_beam
                 
-                equivalent_snr_dl_db, equivalent_snr_ul_db = utils.reverse_snr_from_thr(dl_ue_throughput, ul_ue_throughput, self.scenario)
-                equivalent_snr_dl_db -= self.scenario['dl_db_headroom']
-                equivalent_snr_ul_db -= self.scenario['ul_db_headroom']
+                # Sfruttiamo il nuovo modulo Channel per invertire e calcolare il throughput
+                eq_snr_dl, eq_snr_ul = Channel.reverse_snr_from_thr(dl_ue_throughput, ul_ue_throughput, self.scenario)
+                eq_snr_dl -= self.scenario['dl_db_headroom']
+                eq_snr_ul -= self.scenario['ul_db_headroom']
                 
-                dl_ue_throughput, ul_ue_throughput = utils.compute_shannon_from_snr(equivalent_snr_dl_db, equivalent_snr_ul_db, self.scenario)
+                dl_ue_throughput, ul_ue_throughput = Channel.compute_shannon_from_snr(eq_snr_dl, eq_snr_ul, self.scenario)
                 
+                # Impatto Temporale della durata dell'Handover sul TCP
                 ho_duration_ms = ue.remaining_handover_execution_time
-                if(ue.remaining_handover_execution_time >= 1000):
-                    dl_ue_throughput = 0
-                    ul_ue_throughput = 0
+                if ue.remaining_handover_execution_time >= 1000:
+                    dl_ue_throughput, ul_ue_throughput = 0, 0
                     ue.remaining_handover_execution_time -= 1000
-                elif(ue.remaining_handover_execution_time > 0):
-                    dl_ue_throughput = dl_ue_throughput * (1 - ue.remaining_handover_execution_time/1000)
-                    ul_ue_throughput = ul_ue_throughput * (1 - ue.remaining_handover_execution_time/1000)
+                elif ue.remaining_handover_execution_time > 0:
+                    loss_factor = 1 - (ue.remaining_handover_execution_time / 1000)
+                    dl_ue_throughput *= loss_factor
+                    ul_ue_throughput *= loss_factor
                     ue.remaining_handover_execution_time = 0
 
+                # Decurtazione Overhead di Protocollo 3GPP
                 dl_ue_throughput *= (1 - self.scenario['3gpp_overhead_dl'])
                 ul_ue_throughput *= (1 - self.scenario['3gpp_overhead_ul'])
 
-                thr_info = {
-                        "time": target_time,
-                        "ue.id": ue.id,
-                        "sat.id": serving_satellite.name,
-                        "max_dl_thr": max_dl_thr,
-                        "max_ul_thr": max_ul_thr,
-                        "connected_users": active_users_in_beam, 
-                        "ho_duration": ho_duration_ms,
-                        "dl_thr": dl_ue_throughput,
-                        "ul_thr": ul_ue_throughput
-                    }
-                ue.thr_tracker.append(thr_info)
+                ue.thr_tracker.append({
+                        "time": target_time, "ue.id": ue.id, "sat.id": serving_satellite.name,
+                        "max_dl_thr": max_dl_thr, "max_ul_thr": max_ul_thr,
+                        "connected_users": active_users_in_beam, "ho_duration": ho_duration_ms,
+                        "dl_thr": dl_ue_throughput, "ul_thr": ul_ue_throughput
+                    })

@@ -1,206 +1,166 @@
-from satellite import Satellite
 import pandas as pd
 import os
 
 class Ue:
-    def __init__(self, id, position):
-        self.id = id
+    def __init__(self, ue_id, position):
+        self.id = ue_id
         self.lat = position[0]
         self.lon = position[1]
         self.alt = position[2]
+        
+        # Stato Connessione (Data Plane)
         self.connected_to = None
         self.connected_to_beam = None
-        self.handover_tracker = []
-        self.remaining_handover_execution_time = 0 # [ms] save the ho duration at this time instant if the ue has performed ho
-        self.thr_tracker = []
-
-        # =======================================================
-        # NUOVE VARIABILI SDN (Architettura Passiva / eDRX)
-        # =======================================================
-        # Schedule dell'Handover dettato dal Controller Centrale
+        
+        # Variabili SDN (Control Plane - Architettura Passiva)
         # Struttura attesa: {'time': datetime, 'sat': sat_obj, 'beam': index}
         self.scheduled_handover = None 
-
-        # Stati del Filtro EMA (Exponential Moving Average) per pulire il rumore
+        
+        # Filtri IIR (Exponential Moving Average) per mitigazione rumore canale
         self.ema_snr_dl = None
         self.ema_snr_ul = None
         self.ema_elevation = None
-        self.EMA_ALPHA = 0.3 # Fattore di smorzamento (0 = ignora rumore, 1 = reattivo 100%)
+        self.EMA_ALPHA = 0.3 # Fattore di reattività del filtro EMA
 
+        # Tracker Statistico
+        self.handover_tracker = []
+        self.thr_tracker = []
+        self.remaining_handover_execution_time = 0 # [ms] Latenza causata dall'ultimo HO
 
     def update_ema_filters(self, raw_snr_dl, raw_snr_ul, raw_elev):
         """
-        Aggiorna la Media Mobile Esponenziale.
-        Viene chiamata dal simulatore a ogni istante t per pulire il rumore gaussiano.
+        Aggiorna i filtri EMA per livellare il rumore gaussiano delle letture PHY.
+        Garantisce la stabilità metrica richiesta dall'algoritmo MADM-PREHO SDN.
         """
         if self.ema_snr_dl is None:
-            # Inizializzazione al primo segnale ricevuto
             self.ema_snr_dl = raw_snr_dl
             self.ema_snr_ul = raw_snr_ul
             self.ema_elevation = raw_elev
         else:
-            # Applica la formula EMA
             self.ema_snr_dl = (self.EMA_ALPHA * raw_snr_dl) + ((1 - self.EMA_ALPHA) * self.ema_snr_dl)
             self.ema_snr_ul = (self.EMA_ALPHA * raw_snr_ul) + ((1 - self.EMA_ALPHA) * self.ema_snr_ul)
             self.ema_elevation = (self.EMA_ALPHA * raw_elev) + ((1 - self.EMA_ALPHA) * self.ema_elevation)
         
         return self.ema_snr_dl, self.ema_snr_ul, self.ema_elevation
 
-
     def execute_scheduled_handover(self, current_time):
         """
-        Motore di esecuzione passivo.
-        Se l'SDN Controller ha programmato un handover per l'istante attuale, l'UE lo esegue.
+        Motore attuatore passivo: l'UE subisce le decisioni di routing centralizzato.
+        Verifica se il trigger temporale dettato dal TTS Stocastico è scattato.
         """
         if self.scheduled_handover is not None:
             exec_time = self.scheduled_handover['time']
             
-            # Controlla se è arrivato il momento esatto (TTS - Temporal Trigger)
-            if str(current_time) == str(exec_time) or current_time >= exec_time:
+            # Trigger temporale (eliminato il casting str() per O(1) performance)
+            if current_time >= exec_time:
                 dest_sat = self.scheduled_handover['sat']
                 dest_beam = self.scheduled_handover['beam']
                 
                 curr_sat, curr_beam_index = self.get_connection_info()
                 
-                # Esecuzione Fisica
                 if curr_sat is not None and dest_sat is not None and curr_sat.name == dest_sat.name:
                     self.intra_handover(current_time, curr_sat, dest_beam)
                 else:
                     self.inter_handover(current_time, dest_sat, dest_beam)
                 
-                # Ordine completato, svuota la coda
                 self.scheduled_handover = None
                 return True 
                 
         return False
 
+    def get_connection_info(self):
+        """ Ritorna i puntatori al nodo di routing attuale. """
+        return self.connected_to, self.connected_to_beam
 
     def connect_to_satellite(self, satellite, beam_index):
-        """
-        Connect the UE to a satellite and a specific beam index.
-        """
+        """ Attuatore fisico: stabilisce il link con il nuovo nodo. """
         self.connected_to = satellite
         self.connected_to_beam = beam_index
 
-    
+    def disconnect(self):
+        """ Sgancia l'UE dal nodo corrente (Link Failure). """
+        self.connected_to = None
+        self.connected_to_beam = None
+
     def deactivate(self, cluster_name):
         """
-        Deactivate the UE. This should be called once the UE is no longer needed.
+        Terminazione ciclo vitale: esporta i log (Digital Twin Telemetry).
         """
-        # handover df
-        df = pd.DataFrame(self.handover_tracker)
-        filename = f"{self.id}_handover_events.csv"
+        # Esporta Handover Tracker
+        if self.handover_tracker:
+            df_ho = pd.DataFrame(self.handover_tracker)
+            output_folder_ho = f"{cluster_name} dataframes_preho"
+            os.makedirs(output_folder_ho, exist_ok=True)
+            df_ho.to_csv(os.path.join(output_folder_ho, f"{self.id}_handover_events.csv"), index=False)
 
-        output_folder = cluster_name + " dataframes_preho"
-        full_path = os.path.join(output_folder, filename)
-        os.makedirs(output_folder, exist_ok=True)
+        # Esporta Throughput Tracker
+        if self.thr_tracker:
+            df_thr = pd.DataFrame(self.thr_tracker)
+            output_folder_thr = f"{cluster_name} throughput_preho"
+            os.makedirs(output_folder_thr, exist_ok=True)
+            df_thr.to_csv(os.path.join(output_folder_thr, f"{self.id}_thr_over_time.csv"), index=False)
 
-        df.to_csv(full_path, index=False)
-
-        # throughput df
-        df = pd.DataFrame(self.thr_tracker)
-        filename = f"{self.id}_thr_over_time.csv"
-
-        output_folder = cluster_name + " throughput_preho"
-        full_path = os.path.join(output_folder, filename)
-        os.makedirs(output_folder, exist_ok=True)
-
-        df.to_csv(full_path, index=False)
-
-
-    def get_connection_info(self):
-        """
-        Return the satellite object and the beam index to which the UE is currently connected.
-        """
-        return self.connected_to, self.connected_to_beam
-
-    
     def inter_handover(self, time, dest_sat, dest_beam_index):
         """
-        Handle the handover process for the UE...
+        Gestisce la transizione fisica verso un satellite differente (Inter-HO).
+        Invoca il manager MAC ALOHA dei satelliti coinvolti e aggiorna la topologia.
         """
         curr_sat, curr_beam_index = self.get_connection_info()
 
-        # Case 1) and 2)
-        if(dest_sat is None):
-            event_type = "out_serv"
-            curr_sat_name = None
-
-            if(curr_sat is not None): # Case 2)
-                event_type = "lost_conn"
-                curr_sat_name = curr_sat.name
+        # Case 1 & 2: Perdita di copertura totale
+        if dest_sat is None:
+            event_type = "lost_conn" if curr_sat is not None else "out_serv"
+            curr_sat_name = curr_sat.name if curr_sat is not None else None
 
             handover_info = {
-                    "arrival_time": time,
-                    "event_type": event_type,
-                    "ue_id": self.id,
-                    "from_satellite": curr_sat_name,
-                    "from_beam_index": curr_beam_index,
-                    "dest_satellite": None,
-                    "dest_beam_index": None,
-                    "start_time": time,
-                    "departure_time": 0,
-                    "duration": 1,
-                    "dest_number_ues": None
+                    "arrival_time": time, "event_type": event_type, "ue_id": self.id,
+                    "from_satellite": curr_sat_name, "from_beam_index": curr_beam_index,
+                    "dest_satellite": None, "dest_beam_index": None,
+                    "start_time": time, "departure_time": 0, "duration": 1, "dest_number_ues": None
                 }
 
-            # update curr_sat infos
-            if(curr_sat is not None):
+            if curr_sat is not None:
                 curr_sat.disconnect_ue(curr_beam_index)
                 curr_sat.handover_manager.handover_tracker.append(handover_info)
 
-            # update UE infos
             self.disconnect()
             self.remaining_handover_execution_time = handover_info["duration"]
             self.handover_tracker.append(handover_info)
-
             return 
         
-        # Case 3) and 4)
-        else: 
-            if(curr_sat is None): # Case 3)
-                handover_info = {
-                    "arrival_time": time,
-                    "event_type": "rest_conn",
-                    "ue_id": self.id,
-                    "from_satellite": None,
-                    "from_beam_index": None,
-                    "dest_satellite": dest_sat.name,
-                    "dest_beam_index": dest_beam_index,
-                    "start_time": time,
-                    "departure_time": 0,
-                    "duration": 1,
+        # Case 3: Riconnessione da stato offline
+        if curr_sat is None: 
+            handover_info = {
+                    "arrival_time": time, "event_type": "rest_conn", "ue_id": self.id,
+                    "from_satellite": None, "from_beam_index": None,
+                    "dest_satellite": dest_sat.name, "dest_beam_index": dest_beam_index,
+                    "start_time": time, "departure_time": 0, "duration": 1,
                     "dest_number_ues": dest_sat.connected_ues.copy()
                 }
+            dest_sat.handover_manager.handover_tracker.append(handover_info)
+            dest_sat.connect_ue(dest_beam_index)
 
-                # update destt_sat infos 
-                dest_sat.handover_manager.handover_tracker.append(handover_info)
-                dest_sat.connect_ue(dest_beam_index)
+            self.remaining_handover_execution_time = handover_info["duration"] * 1000
+            self.handover_tracker.append(handover_info)
+            self.connect_to_satellite(dest_sat, dest_beam_index)
 
-                # update UE infos
-                self.remaining_handover_execution_time = handover_info["duration"] * 1000
-                self.handover_tracker.append(handover_info)
-                self.connect_to_satellite(dest_sat , dest_beam_index)
+        # Case 4: Transizione normale da Sat_A a Sat_B
+        else: 
+            handover_info = curr_sat.handover_manager.process_handover_inter(time, self, curr_beam_index, dest_sat, dest_beam_index)
 
-            else: # Case 4)
-                handover_info = curr_sat.handover_manager.process_handover_inter(time, self, curr_beam_index, dest_sat, dest_beam_index)
+            dest_sat.handover_manager.handover_tracker.append(handover_info)
+            dest_sat.connect_ue(dest_beam_index)
+            curr_sat.handover_manager.handover_tracker.append(handover_info)
+            curr_sat.disconnect_ue(curr_beam_index)
 
-                # update satellites infos
-                dest_sat.handover_manager.handover_tracker.append(handover_info)
-                dest_sat.connect_ue(dest_beam_index)
-                curr_sat.handover_manager.handover_tracker.append(handover_info)
-                curr_sat.disconnect_ue(curr_beam_index)
-
-                # update UE infos
-                self.remaining_handover_execution_time = handover_info["duration"] * 1000
-                self.handover_tracker.append(handover_info)
-                self.connect_to_satellite(dest_sat , dest_beam_index)
-
-        return  
+            self.remaining_handover_execution_time = handover_info["duration"] * 1000
+            self.handover_tracker.append(handover_info)
+            self.connect_to_satellite(dest_sat, dest_beam_index)
 
     def intra_handover(self, time, dest_sat, dest_beam_index):
         """
-        Handle the intra-handover process for the UE...
+        Gestisce la transizione logica tra due fasci dello stesso satellite (Intra-HO).
+        Latenza strutturalmente ridotta rispetto all'Inter-HO.
         """
         curr_sat, curr_beam_index = self.get_connection_info()
         handover_info = curr_sat.handover_manager.process_handover_intra(time, self, curr_beam_index, dest_sat, dest_beam_index)
@@ -209,16 +169,6 @@ class Ue:
         curr_sat.disconnect_ue(curr_beam_index)
         dest_sat.connect_ue(dest_beam_index)
 
-        # update the ue infos
-        self.connect_to_satellite(dest_sat , dest_beam_index) 
+        self.connect_to_satellite(dest_sat, dest_beam_index) 
         self.remaining_handover_execution_time = handover_info["duration"] * 1000
         self.handover_tracker.append(handover_info)
-
-        return 
-    
-    def disconnect(self):
-        """
-        Disconnect the UE from its current satellite.
-        """
-        self.connected_to = None
-        self.connected_to_beam = None
