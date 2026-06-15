@@ -191,44 +191,89 @@ class SDN_Controller:
                 cost_matrix[i, j] = -w_score
 
         row_ind, col_ind = linear_sum_assignment(cost_matrix)
-        current_time_offset = 0 
         
         for idx in range(len(row_ind)):
             ue_idx = row_ind[idx]
             v_beam_idx = col_ind[idx]
             
             ue = all_ues[ue_idx][0]
+            mini_cluster = all_ues[ue_idx][1] # Recuperiamo il mini_cluster per l'elevazione
             v_beam = virtual_beams[v_beam_idx] 
             
             target_sat_name = v_beam['sat_tuple'][0]
             target_beam = v_beam['beam_idx']
             
             curr_sat_obj, curr_beam_idx = ue.get_connection_info()
-
-            if isinstance(time, pd.Timestamp):
-                scheduled_time = time + timedelta(seconds=current_time_offset)
-            else:
-                scheduled_time = time + timedelta(seconds=current_time_offset)
             
+            # -----------------------------------------------------------------
+            # VERIFICA DELLA NECESSITÀ DI HANDOVER
+            # -----------------------------------------------------------------
+            is_valid_ho = False
+            # 1. Se il target è il vuoto (costo = 1000)
             if cost_matrix[ue_idx, v_beam_idx] == 1000.0:
-                ue.scheduled_handover = {'time': scheduled_time, 'sat': None, 'beam': None}
+                ue.scheduled_handover = {'time': time, 'sat': None, 'beam': None}
+                continue # Utente sganciato per mancanza di copertura
+
+            # 2. Se stiamo effettivamente cambiando satellite o fascio
+            if curr_sat_obj is None or curr_sat_obj.name != target_sat_name or curr_beam_idx != target_beam:
+                is_valid_ho = True
+            
+            if not is_valid_ho:
+                ue.scheduled_handover = None
                 continue
 
-            if curr_sat_obj is None or curr_sat_obj.name != target_sat_name or curr_beam_idx != target_beam:
-                if target_sat_name not in service_sats:
-                    sat = Satellite(target_sat_name, self.cluster.sat_servers, self.cluster.sat_mu_inter, self.cluster.sat_mu_intra, self.cluster.num_beams)
-                    service_sats[target_sat_name] = sat
-                dest_sat_obj = service_sats[target_sat_name]
-                
-                # Allentiamo il Temporal Trigger Spreading (TTS) per stressare il canale RACH.
-                # Lasciando saltare 15 utenti nello stesso secondo, si innesca la congestione ALOHA.
-                if (idx % 15) == 0: 
-                    current_time_offset += 1
-                
-                ue.scheduled_handover = {
-                    'time': scheduled_time,
-                    'sat': dest_sat_obj,
-                    'beam': target_beam
-                }
+            # -----------------------------------------------------------------
+            # INIZIO: TTS PURO (TEMPORAL TRIGGER SPREADING STOCASTICO)
+            # -----------------------------------------------------------------
+            delta_w = 0.0 # Finestra di default per chi non ha storico o sta salendo
+            
+            if curr_sat_obj is not None and getattr(ue, 'ema_elevation', None) is not None:
+                try:
+                    # Calcolo derivata per stimare il T_crit
+                    # Arrotondiamo il tempo localmente per garantire la sincronia con il database orbitale
+                    round_time_local = (time + timedelta(microseconds=500000)).replace(microsecond=0)
+                    t_minus_1 = round_time_local - timedelta(seconds=1)
+                    
+                    elev_old = utils.get_elevation(self.frame, t_minus_1, curr_sat_obj.name, mini_cluster.position)
+                    derivata_elev = ue.ema_elevation - elev_old
+                    
+                    if derivata_elev < -0.01: # Se il satellite sta scendendo
+                        theta_min = self.cluster.elevation_threshold if hasattr(self.cluster, 'elevation_threshold') else 30.0
+                        t_crit = (ue.ema_elevation - theta_min) / abs(derivata_elev)
+                        
+                        t_margin = 2.0
+                        delta_w_calc = t_crit - t_margin
+                        
+                        # Clamping della finestra (min 1s, max 15s)
+                        delta_w = max(1.0, min(delta_w_calc, 15.0))
+                    else:
+                        # Se il satellite sta salendo o è stabile, ma l'SDN vuole fare HO per meteo/carico,
+                        # concediamo una finestra standard ampia per non stressare il RACH.
+                        delta_w = 10.0
+                except:
+                    delta_w = 3.0 # Fallback in caso di errore sui dati orbitali vecchi
             else:
-                ue.scheduled_handover = None
+                delta_w = 1.0 # Fallback per initial connection
+
+            # Estrazione stocastica del tempo di scheduling all'interno di [0, delta_w]
+            # Convertiamo in int per i secondi di offset
+            random_offset_seconds = int(random.uniform(0, delta_w))
+            
+            if isinstance(time, pd.Timestamp):
+                scheduled_time = time + timedelta(seconds=random_offset_seconds)
+            else:
+                scheduled_time = time + timedelta(seconds=random_offset_seconds)
+
+            # -----------------------------------------------------------------
+            # REGISTRAZIONE DELL'HANDOVER E CREAZIONE SATELLITE
+            # -----------------------------------------------------------------
+            if target_sat_name not in service_sats:
+                sat = Satellite(target_sat_name, self.cluster.sat_servers, self.cluster.sat_mu_inter, self.cluster.sat_mu_intra, self.cluster.num_beams)
+                service_sats[target_sat_name] = sat
+            dest_sat_obj = service_sats[target_sat_name]
+            
+            ue.scheduled_handover = {
+                'time': scheduled_time,
+                'sat': dest_sat_obj,
+                'beam': target_beam
+            }
