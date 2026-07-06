@@ -63,7 +63,7 @@ def main():
     # PARAMETRI DI SIMULAZIONE E TOPOLOGIA
     # ====================================================================================== #
     epoch_time = np.datetime64('2026-02-19T00:00:00')   
-    simulation_duration_seconds = 1800                  
+    simulation_duration_seconds = 6000                  
     simulation_step_seconds = 1                         
     
     # Coordinate UE (Target)

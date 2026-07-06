@@ -3,8 +3,6 @@ from datetime import datetime, timedelta
 import utils
 import random
 import numpy as np
-
-# Importiamo il nuovo livello fisico (PHY) e il Controller SDN
 from channel import Channel
 from sdn_controller import SDN_Controller
 
@@ -212,7 +210,7 @@ class Cluster:
                             pass
                 if trigger_sdn: break
 
-        if trigger_sdn and sat_selection_condition == "MADM_PREHO":
+        if trigger_sdn and sat_selection_condition == "PREHO":
             self.sdn_controller.run_optimization(time, service_sats, visible_sats_for_each_minicluster)
 
         self.save_instant_throughput(time)

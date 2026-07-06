@@ -705,3 +705,75 @@ if doppler_shift_dist:
     fig.savefig(os.path.join(output_folder, "10-Doppler_Shift_Dist.png"), dpi=300, bbox_inches='tight')
     plt.close('all')
     print("   Completed!\n")
+
+# ========================================================================================================= #
+# 11. SATELLITE LOAD DISTRIBUTION (Max and Avg UEs per Satellite)
+# ========================================================================================================= #
+satellite_load_distribution = True
+
+if satellite_load_distribution:
+    print("11. Plotting Satellite Load Distribution (Max vs Avg UEs) ...")
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    # Convertiamo simTimeStart in un oggetto pandas datetime per uniformità
+    sim_start_pd = pd.to_datetime(simTimeStart)
+
+    for i, (df_name_iter, fname) in enumerate(zip(dfnames, fnames)):
+        folder_path = Path("Cluster" + str(i+1) + dataframes_folder_suffix)
+        
+        total_seconds = int((simTimeEnd - simTimeStart).total_seconds())
+        load_matrix = {sec: {} for sec in range(total_seconds + 1)}
+        
+        for file_path in folder_path.glob('*.csv'):
+            try:
+                df = pd.read_csv(file_path)
+                if df.empty: continue
+                
+                # FIX TIMEZONE: Rimuoviamo l'offset UTC per renderlo compatibile con simTimeStart
+                df['arrival_time'] = pd.to_datetime(df['arrival_time'], errors='coerce').dt.tz_localize(None)
+                df = df.sort_values('arrival_time')
+                
+                for row, next_row in zip(df.itertuples(), df.iloc[1:].itertuples()):
+                    sat = str(row.dest_satellite)
+                    if sat != 'None' and pd.notna(sat):
+                        # Ora la sottrazione funziona perfettamente
+                        start_sec = int((row.arrival_time - sim_start_pd).total_seconds())
+                        end_sec = int((next_row.arrival_time - sim_start_pd).total_seconds())
+                        
+                        start_sec = max(0, min(start_sec, total_seconds))
+                        end_sec = max(0, min(end_sec, total_seconds))
+                        
+                        for sec in range(start_sec, end_sec):
+                            if sat not in load_matrix[sec]:
+                                load_matrix[sec][sat] = 0
+                            load_matrix[sec][sat] += 1
+            except Exception as e:
+                print(f"Errore sul file {file_path}: {e}") # Ora l'errore non è più silenzioso!
+                continue
+
+        max_load_series, avg_load_series = [], []
+        
+        for sec in range(total_seconds):
+            active_sats = load_matrix[sec]
+            if active_sats:
+                max_load_series.append(max(active_sats.values()))
+                avg_load_series.append(sum(active_sats.values()) / len(active_sats))
+            else:
+                max_load_series.append(0)
+                avg_load_series.append(0)
+
+        time_vector = pd.date_range(start=simTimeStart, periods=total_seconds, freq='1s')
+        
+        ax.plot(time_vector, max_load_series, label=f"{fname}: Max UEs on a single Sat", color='firebrick', linewidth=2)
+        ax.plot(time_vector, avg_load_series, label=f"{fname}: Average UEs per active Sat", color='royalblue', linestyle='--')
+
+    ax.set_title('Satellite Load Distribution Over Time (Max vs Avg)')
+    ax.set_ylabel('Number of Connected UEs')
+    ax.grid(True, alpha=0.5)
+    ax.legend(loc='upper right')
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%M:%S'))
+    ax.axhline(y=100, color='gray', linestyle=':', alpha=0.7)
+    
+    fig.savefig(os.path.join(output_folder, "11-Satellite_Load_Distribution.png"), dpi=300, bbox_inches='tight')
+    plt.close('all')
+    print("    Completed!\n")

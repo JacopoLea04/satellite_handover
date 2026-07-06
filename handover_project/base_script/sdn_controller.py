@@ -14,10 +14,10 @@ class SDN_Controller:
         self.df = dataframe
         
         # Parametri Ottimizzazione
-        self.WATER_FILLING_LIMIT = 15.0 
-        self.INTRA_HO_PENALTY = 1.0     
-        self.INTER_HO_PENALTY = 0.5    
-        self.SWITCHING_COST_BONUS = 0.5  # Bonus additivo per ancorare l'UE al nodo corrente
+        self.WATER_FILLING_LIMIT = 75.0 
+        self.INTRA_HO_PENALTY = 0.90    
+        self.INTER_HO_PENALTY = 0.45    
+        self.SWITCHING_COST_BONUS = 0.60  # Bonus additivo per ancorare l'UE al nodo corrente
         
         # Pilastro 1: Latenza e Rumore Control Plane
         self.tau_c = 0.250  # Latenza (250 ms)
@@ -124,20 +124,22 @@ class SDN_Controller:
                 if self.weather_state.get(target_sat_name) == 'B': 
                     w_score *= 0.5 
                 
-                # Isteresi Moltiplicativa Legacy
-                w_score *= self.INTRA_HO_PENALTY if target_sat_name == curr_sat_name else self.INTER_HO_PENALTY
-                
-                # Shannon Spreading (Divisione Risorse nello Stesso Fascio)
+                # Macchina a Stati per Costi Topologici
+                if curr_sat_name is not None:
+                    if target_sat_name == curr_sat_name and target_beam_idx == curr_beam_idx:
+                        # STATO 0: STATUS QUO (Fermo) -> Nessuna penalità + Bonus di Ancoraggio
+                        w_score += self.SWITCHING_COST_BONUS
+                    
+                    elif target_sat_name == curr_sat_name and target_beam_idx != curr_beam_idx:
+                        # STATO 1: INTRA-HO -> Penalità Lieve, Nessun Bonus
+                        w_score *= self.INTRA_HO_PENALTY
+                        
+                    else:
+                        # STATO 2: INTER-HO -> Penalità Severa, Nessun Bonus
+                        w_score *= self.INTER_HO_PENALTY
+
+                # Shannon Spreading (Divisione Risorse per Load Balancing)
                 w_score *= (1.0 / (v_beam['slot'] + 1.0))
-                
-                # -------------------------------------------------------------
-                # MODIFICA SCIENTIFICA: ISTERESI ADDITIVA (ANTI-PING-PONG)
-                # -------------------------------------------------------------
-                # Se l'assegnazione virtuale coincide ESATTAMENTE con il nodo fisico 
-                # (stesso satellite e stesso fascio) a cui l'UE è già connesso, 
-                # iniettiamo un bonus netto. Questo impedisce il "Chasing the Noise".
-                if curr_sat_name is not None and target_sat_name == curr_sat_name and target_beam_idx == curr_beam_idx:
-                    w_score += self.SWITCHING_COST_BONUS
                         
                 cost_matrix[i, j] = -w_score
 
