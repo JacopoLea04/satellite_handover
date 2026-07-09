@@ -14,10 +14,10 @@ class SDN_Controller:
         self.df = dataframe
         
         # Parametri Ottimizzazione
-        self.WATER_FILLING_LIMIT = 75.0 
-        self.INTRA_HO_PENALTY = 0.90    
-        self.INTER_HO_PENALTY = 0.45    
-        self.SWITCHING_COST_BONUS = 0.60  # Bonus additivo per ancorare l'UE al nodo corrente
+        self.WATER_FILLING_LIMIT = 25.0 
+        self.INTRA_HO_PENALTY = 0.50    
+        self.INTER_HO_PENALTY = 0.3    
+        self.SWITCHING_COST_BONUS = 0.5  # Bonus additivo per ancorare l'UE al nodo corrente
         
         # Pilastro 1: Latenza e Rumore Control Plane
         self.tau_c = 0.250  # Latenza (250 ms)
@@ -124,6 +124,8 @@ class SDN_Controller:
                 if self.weather_state.get(target_sat_name) == 'B': 
                     w_score *= 0.5 
                 
+                w_score *= (1.0 / (v_beam['slot'] + 1.0)) #PROVO AD INSERIRLO PRIMA DELLA MACCHINA A STATI
+
                 # Macchina a Stati per Costi Topologici
                 if curr_sat_name is not None:
                     if target_sat_name == curr_sat_name and target_beam_idx == curr_beam_idx:
@@ -139,9 +141,9 @@ class SDN_Controller:
                         w_score *= self.INTER_HO_PENALTY
 
                 # Shannon Spreading (Divisione Risorse per Load Balancing)
-                w_score *= (1.0 / (v_beam['slot'] + 1.0))
+                #w_score *= (1.0 / (v_beam['slot'] + 1.0))
                         
-                cost_matrix[i, j] = -w_score
+                cost_matrix[i, j] = -w_score 
 
         # -----------------------------------------------------------------
         # PILASTRO 3: OTTIMIZZAZIONE GLOBALE (Kuhn-Munkres)

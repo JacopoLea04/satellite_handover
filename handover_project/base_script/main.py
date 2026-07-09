@@ -26,8 +26,8 @@ sat_selection_condition_1 = "PREHO"
 enable_elevation_threshold = True
 elevation_threshold = 30
 
-simTime = timedelta(minutes=90)  # Durata simulazione (90 minuti)
-num_ues = 300
+simTime = timedelta(minutes=15)  # Durata simulazione (90 minuti)
+num_ues = 100
 mu_inter = 30 * 1e-3  # Costo fisico Inter-HO (30 ms)
 mu_intra = 1 * 1e-3   # Costo fisico Intra-HO (1 ms)
 servers = 1
