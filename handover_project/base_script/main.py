@@ -17,8 +17,8 @@ sat_selection_condition_1 = "AVL_THR"
 enable_elevation_threshold = True
 elevation_threshold = 30
 
-simTime = timedelta(minutes=25)
-num_ues = 100
+simTime = timedelta(minutes=30)
+num_ues = 300
 mu_inter = 30 * 1e-3
 mu_intra = 1 * 1e-3 
 servers = 1
@@ -170,9 +170,9 @@ print("Creating the folder with the ue dataframes ...")
 
 
 output_folders = (
-    [f"{cluster.name} dataframes" for cluster in clusters] +
-    [f"{cluster.name} throughput" for cluster in clusters] +
-    ["Satellite dataframes"]
+    [f"{cluster.name} dataframes_active_average_throughput" for cluster in clusters] +
+    [f"{cluster.name} throughput_active_average_throughput" for cluster in clusters] +
+    ["Satellite dataframes_active_average_throughput"]
 )
 
 # if there are old results, delete them
