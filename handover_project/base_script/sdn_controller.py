@@ -13,27 +13,44 @@ class SDN_Controller:
         self.scenario = scenario
         self.df = dataframe
         
-        # Parametri Ottimizzazione
-        self.WATER_FILLING_LIMIT = 25.0 
-        self.INTRA_HO_PENALTY = 0.50    
-        self.INTER_HO_PENALTY = 0.3    
-        self.SWITCHING_COST_BONUS = 0.5  # Bonus additivo per ancorare l'UE al nodo corrente
+        # =================================================================
+        # TOGGLE DELLA SIMULAZIONE (PER IL PAPER IEEE)
+        # Scegliere 'BASELINE' per il test Greedy (Solo Max Elevazione)
+        # Scegliere 'SDN_PROPOSED' per l'architettura ibrida ottimizzata
+        # =================================================================
+        self.SIMULATION_MODE = 'SDN_PROPOSED'  # <--- CAMBIA QUESTO VALORE PER TESTARE
+        
+        # -----------------------------------------------------------------
+        # PARAMETRI OTTIMIZZAZIONE E STABILITA' (SDN_PROPOSED)
+        # -----------------------------------------------------------------
+        self.WATER_FILLING_LIMIT = 200.0  
+        self.INTRA_HO_PENALTY = 0.30      
+        self.INTER_HO_PENALTY = 0.20      
+        self.SWITCHING_COST_BONUS = 0.01  
+        
+        self.PRE_FILTER_LIMIT = 100.0     
+        self.LOCK_IN_ELEVATION = 40.0     
+        self.CRITICAL_ELEVATION = 30.0    
+        
+        self.TTT_NORMAL = 5               
+        self.TTT_CRITICAL = 1             
+        self.pending_handovers = {}       
         
         # Pilastro 1: Latenza e Rumore Control Plane
-        self.tau_c = 0.250  # Latenza (250 ms)
-        self.sigma_theta = 0.5  # Deviazione std errore misura (gradi)
+        self.tau_c = 0.250  
+        self.sigma_theta = 0.5  
         
         # Catena di Markov a 2 Stati (Meteo)
         self.dt_markov = 1.0 
-        T_good = 45.0 
-        T_bad = 15.0  
-        self.p_gb = self.dt_markov / T_good
-        self.p_bg = self.dt_markov / T_bad
+        self.T_good = 45.0 
+        self.T_bad = 15.0  
+        self.p_gb = self.dt_markov / self.T_good
+        self.p_bg = self.dt_markov / self.T_bad
         self.weather_state = {}
         self.last_weather_update_time = None
 
-        # Tabella Hash O(1) per telemetria orbitale (Performance)
-        print("\n[SDN] Inizializzazione Hash Map telemetrica...")
+        print(f"\n[SDN] Modalità Inizializzata: {self.SIMULATION_MODE}")
+        print("[SDN] Hash Map telemetrica...")
         self.orbit_cache = {}
         for row in dataframe.itertuples():
             key = (str(row.time), str(row.sat_name))
@@ -41,9 +58,61 @@ class SDN_Controller:
         print(f"[SDN] Tabella Hash completata ({len(self.orbit_cache)} stati).\n")
 
     def run_optimization(self, time, service_sats, visible_sats_for_each_minicluster):
-        # -----------------------------------------------------------------
-        # AGGIORNAMENTO STATO AMBIENTALE (Markov)
-        # -----------------------------------------------------------------
+        """
+        Funzione Wrapper: smista il traffico in base alla modalità di test scelta.
+        """
+        if self.SIMULATION_MODE == 'BASELINE':
+            self._run_baseline_greedy(time, service_sats, visible_sats_for_each_minicluster)
+        else:
+            self._run_hybrid_sdn(time, service_sats, visible_sats_for_each_minicluster)
+
+    def _run_baseline_greedy(self, time, service_sats, visible_sats_for_each_minicluster):
+        """
+        BASELINE GREEDY CONTROLLER (UE-Driven)
+        Assegna l'utente al satellite visibile con l'elevazione massima, ignorando
+        il carico, il meteo, le penalità e il TTT. Serve per l'Ablation Study.
+        """
+        all_ues = [(ue, mc) for mc in self.cluster.list_beams for ue in mc.list_ues]
+        if not all_ues: return
+
+        for ue, mini_cluster in all_ues:
+            best_sat_name = None
+            best_beam_idx = None
+            max_elev = -1.0
+            
+            mc_lat, mc_lon, mc_alt = mini_cluster.position
+            valid_sats_beams = visible_sats_for_each_minicluster[mini_cluster.index]
+            
+            # Ricerca ingorda del satellite migliore
+            for sat_tuple, beam_idx in valid_sats_beams:
+                target_lat, target_lon, target_alt = sat_tuple[1:4]
+                elev = ChannelParameters.elevation_angle_deg(mc_lat, mc_lon, target_lat, target_lon, target_alt)
+                
+                if elev > max_elev:
+                    max_elev = elev
+                    best_sat_name = sat_tuple[0]
+                    best_beam_idx = beam_idx
+                    
+            # Esecuzione immediata (Nessun TTT, nessuna matrice)
+            if best_sat_name:
+                if best_sat_name not in service_sats:
+                    service_sats[best_sat_name] = Satellite(
+                        best_sat_name, 
+                        self.cluster.sat_servers, 
+                        self.cluster.sat_mu_inter, 
+                        self.cluster.sat_mu_intra, 
+                        self.cluster.num_beams
+                    )
+                ue.scheduled_handover = {'time': time, 'sat': service_sats[best_sat_name], 'beam': best_beam_idx}
+            else:
+                ue.scheduled_handover = {'time': time, 'sat': None, 'beam': None}
+
+    def _run_hybrid_sdn(self, time, service_sats, visible_sats_for_each_minicluster):
+        """
+        IL NOSTRO ALGORITMO OTTIMIZZATO 
+        Include Markov, Pre-Filtering, Matrice Shannon e Asymmetric TTT, TTS.
+        """
+        # [AGGIORNAMENTO MARKOV]
         if self.last_weather_update_time != time:
             for sat_data in [item for sublist in visible_sats_for_each_minicluster for item in sublist]:
                 sat_n = sat_data[0][0]
@@ -59,9 +128,7 @@ class SDN_Controller:
                     self.weather_state[sat_n] = 'G'
             self.last_weather_update_time = time
 
-        # -----------------------------------------------------------------
-        # COSTRUZIONE SPAZIO DELLE VARIABILI
-        # -----------------------------------------------------------------
+        # [FASE 1: CAPACITY-AWARE PRE-FILTERING]
         all_ues = [(ue, mc) for mc in self.cluster.list_beams for ue in mc.list_ues]
         if not all_ues: return
 
@@ -79,18 +146,53 @@ class SDN_Controller:
                 ue.scheduled_handover = {'time': time, 'sat': None, 'beam': None}
             return
 
-        # Virtualizzazione risorse (Water-Filling)
-        virtual_beams = [{'sat_tuple': st, 'beam_idx': b_idx, 'slot': s} 
-                         for st, b_idx in available_beams 
-                         for s in range(int(self.WATER_FILLING_LIMIT))]
+        active_ues = []
+        locked_beam_counts = {}
 
-        num_ues, num_vbeams = len(all_ues), len(virtual_beams)
+        for ue, mc in all_ues:
+            curr_sat_obj, curr_beam_idx = ue.get_connection_info()
+            mc_valid_signatures = {f"{st[0]}_{b}" for st, b in visible_sats_for_each_minicluster[mc.index]}
+            
+            is_locked = False
+            if curr_sat_obj:
+                curr_sat_name = curr_sat_obj.name
+                sig = f"{curr_sat_name}_{curr_beam_idx}"
+                weather = self.weather_state.get(curr_sat_name, 'G')
+                
+                elev = getattr(ue, 'ema_elevation', 0.0)
+                if elev is None: elev = 0.0
+                
+                current_locks = locked_beam_counts.get(sig, 0)
+                
+                if weather == 'G' and elev >= self.LOCK_IN_ELEVATION and sig in mc_valid_signatures and current_locks < self.PRE_FILTER_LIMIT:
+                    is_locked = True
+                    locked_beam_counts[sig] = current_locks + 1
+                    if id(ue) in self.pending_handovers:
+                        del self.pending_handovers[id(ue)]
+                        
+            if not is_locked:
+                active_ues.append((ue, mc))
+
+        if not active_ues:
+            return  
+
+        # [FASE 2: VIRTUALIZZAZIONE RISORSE & HARD CAP]
+        virtual_beams = []
+        for st, b_idx in available_beams:
+            sig = f"{st[0]}_{b_idx}"
+            used_slots = locked_beam_counts.get(sig, 0)
+            
+            available_slots = max(0, int(self.WATER_FILLING_LIMIT) - used_slots)
+            
+            for s in range(used_slots, used_slots + available_slots):
+                virtual_beams.append({'sat_tuple': st, 'beam_idx': b_idx, 'slot': s})
+
+        num_ues, num_vbeams = len(active_ues), len(virtual_beams)
+        if num_vbeams == 0: return
         cost_matrix = np.full((num_ues, num_vbeams), 1000.0)
 
-        # -----------------------------------------------------------------
-        # PILASTRO 2: CALCOLO FUNZIONE DI UTILITA' IBRIDA CON ISTERESI ADDITIVA
-        # -----------------------------------------------------------------
-        for i, (ue, mini_cluster) in enumerate(all_ues):
+        # [FASE 3: MATRICE DEI COSTI]
+        for i, (ue, mini_cluster) in enumerate(active_ues):
             curr_sat_obj, curr_beam_idx = ue.get_connection_info()
             curr_sat_name = curr_sat_obj.name if curr_sat_obj else None
             
@@ -101,7 +203,6 @@ class SDN_Controller:
                 target_sat_name, target_beam_idx = v_beam['sat_tuple'][0], v_beam['beam_idx']
                 if f"{target_sat_name}_{target_beam_idx}" not in valid_signatures: continue 
                 
-                # Geometria Reale
                 target_lat, target_lon, target_alt = v_beam['sat_tuple'][1:4]
                 link_elev_real = ChannelParameters.elevation_angle_deg(mc_lat, mc_lon, target_lat, target_lon, target_alt)
                 
@@ -113,78 +214,82 @@ class SDN_Controller:
                     else: slope_real = 0.0
                 except: slope_real = 0.0
                 
-                # Iniezione Rumore Percezione SDN (Canale Stocastico)
                 link_elev_perceived = np.clip(link_elev_real - (slope_real * self.tau_c) + random.gauss(0, self.sigma_theta), 0.0, 90.0)
                 slope_perceived = slope_real + random.gauss(0, self.sigma_theta / 2.0)
                 
-                # Base Utility Score (Geometria + Trend Cinematico)
                 w_score = max(0.01, 0.8 * (link_elev_perceived / 90.0) + 0.2 * np.clip(slope_perceived / 0.5, -1.0, 1.0))
                 
-                # Penalità Meteo (Markov)
                 if self.weather_state.get(target_sat_name) == 'B': 
                     w_score *= 0.5 
                 
-                w_score *= (1.0 / (v_beam['slot'] + 1.0)) #PROVO AD INSERIRLO PRIMA DELLA MACCHINA A STATI
+                w_score *= (1.0 / (v_beam['slot'] + 1.0)) 
 
-                # Macchina a Stati per Costi Topologici
                 if curr_sat_name is not None:
                     if target_sat_name == curr_sat_name and target_beam_idx == curr_beam_idx:
-                        # STATO 0: STATUS QUO (Fermo) -> Nessuna penalità + Bonus di Ancoraggio
                         w_score += self.SWITCHING_COST_BONUS
-                    
                     elif target_sat_name == curr_sat_name and target_beam_idx != curr_beam_idx:
-                        # STATO 1: INTRA-HO -> Penalità Lieve, Nessun Bonus
                         w_score *= self.INTRA_HO_PENALTY
-                        
                     else:
-                        # STATO 2: INTER-HO -> Penalità Severa, Nessun Bonus
                         w_score *= self.INTER_HO_PENALTY
 
-                # Shannon Spreading (Divisione Risorse per Load Balancing)
-                #w_score *= (1.0 / (v_beam['slot'] + 1.0))
-                        
                 cost_matrix[i, j] = -w_score 
 
-        # -----------------------------------------------------------------
-        # PILASTRO 3: OTTIMIZZAZIONE GLOBALE (Kuhn-Munkres)
-        # -----------------------------------------------------------------
+        # [OTTIMIZZAZIONE GLOBALE]
         row_ind, col_ind = linear_sum_assignment(cost_matrix)
         
-        # -----------------------------------------------------------------
-        # PILASTRO 4: TEMPORAL TRIGGER SPREADING (TTS)
-        # -----------------------------------------------------------------
+        # [FASE 4: ASYMMETRIC TIME-TO-TRIGGER]
         round_time_local = (time + timedelta(microseconds=500000)).replace(microsecond=0)
         t_minus_1 = round_time_local - timedelta(seconds=1)
 
         for idx in range(len(row_ind)):
             ue_idx, v_beam_idx = row_ind[idx], col_ind[idx]
-            ue, mini_cluster = all_ues[ue_idx]
+            ue, mini_cluster = active_ues[ue_idx]
             v_beam = virtual_beams[v_beam_idx] 
             
             target_sat_name, target_beam = v_beam['sat_tuple'][0], v_beam['beam_idx']
             curr_sat_obj, curr_beam_idx = ue.get_connection_info()
             
-            # Controllo validità
             if cost_matrix[ue_idx, v_beam_idx] == 1000.0 or (curr_sat_obj and curr_sat_obj.name == target_sat_name and curr_beam_idx == target_beam):
-                ue.scheduled_handover = None if curr_sat_obj else {'time': time, 'sat': None, 'beam': None}
+                if id(ue) in self.pending_handovers:
+                    del self.pending_handovers[id(ue)]
+                if not curr_sat_obj:
+                    ue.scheduled_handover = {'time': time, 'sat': None, 'beam': None}
                 continue
 
-            # Calcolo Finestra Stocastica Delta W
-            delta_w = 1.0
-            if curr_sat_obj and getattr(ue, 'ema_elevation', None):
-                try:
-                    elev_old = utils.get_elevation(self.frame, t_minus_1, curr_sat_obj.name, mini_cluster.position)
-                    derivata_elev = ue.ema_elevation - elev_old
-                    if derivata_elev < -0.01:
-                        theta_min = getattr(self.cluster, 'elevation_threshold', 30.0)
-                        delta_w = max(1.0, min(((ue.ema_elevation - theta_min) / abs(derivata_elev)) - 2.0, 15.0))
-                    else: delta_w = 10.0
-                except: delta_w = 3.0
+            ue_id = id(ue)
+            sig_target = f"{target_sat_name}_{target_beam}"
             
-            # Astrazione tempo scheduling
-            scheduled_time = time + timedelta(seconds=int(random.uniform(0, delta_w)))
+            elev_current = getattr(ue, 'ema_elevation', 0.0)
+            if elev_current is None: elev_current = 0.0
+            
+            if curr_sat_obj is None or elev_current < self.CRITICAL_ELEVATION:
+                required_ttt = self.TTT_CRITICAL  
+            else:
+                required_ttt = self.TTT_NORMAL    
 
-            if target_sat_name not in service_sats:
-                service_sats[target_sat_name] = Satellite(target_sat_name, self.cluster.sat_servers, self.cluster.sat_mu_inter, self.cluster.sat_mu_intra, self.cluster.num_beams)
-            
-            ue.scheduled_handover = {'time': scheduled_time, 'sat': service_sats[target_sat_name], 'beam': target_beam}
+            if ue_id not in self.pending_handovers or self.pending_handovers[ue_id]['sig'] != sig_target:
+                self.pending_handovers[ue_id] = {'sig': sig_target, 'sat': target_sat_name, 'beam': target_beam, 'count': 1}
+            else:
+                self.pending_handovers[ue_id]['count'] += 1
+                
+            if self.pending_handovers[ue_id]['count'] >= required_ttt:
+                if ue_id in self.pending_handovers:
+                    del self.pending_handovers[ue_id]
+                    
+                delta_w = 1.0
+                if curr_sat_obj and getattr(ue, 'ema_elevation', None):
+                    try:
+                        elev_old = utils.get_elevation(self.frame, t_minus_1, curr_sat_obj.name, mini_cluster.position)
+                        derivata_elev = ue.ema_elevation - elev_old
+                        if derivata_elev < -0.01:
+                            theta_min = getattr(self.cluster, 'elevation_threshold', 30.0)
+                            delta_w = max(1.0, min(((ue.ema_elevation - theta_min) / abs(derivata_elev)) - 2.0, 15.0))
+                        else: delta_w = 10.0
+                    except: delta_w = 3.0
+                
+                scheduled_time = time + timedelta(seconds=int(random.uniform(0, delta_w)))
+
+                if target_sat_name not in service_sats:
+                    service_sats[target_sat_name] = Satellite(target_sat_name, self.cluster.sat_servers, self.cluster.sat_mu_inter, self.cluster.sat_mu_intra, self.cluster.num_beams)
+                
+                ue.scheduled_handover = {'time': scheduled_time, 'sat': service_sats[target_sat_name], 'beam': target_beam}

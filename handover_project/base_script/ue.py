@@ -82,21 +82,21 @@ class Ue:
         self.connected_to = None
         self.connected_to_beam = None
 
-    def deactivate(self, cluster_name):
+    def deactivate(self, cluster_name, label):
         """
         Terminazione ciclo vitale: esporta i log (Digital Twin Telemetry).
         """
         # Esporta Handover Tracker
         if self.handover_tracker:
             df_ho = pd.DataFrame(self.handover_tracker)
-            output_folder_ho = f"{cluster_name} dataframes_preho"
+            output_folder_ho = f"{cluster_name} dataframes_{label}"
             os.makedirs(output_folder_ho, exist_ok=True)
             df_ho.to_csv(os.path.join(output_folder_ho, f"{self.id}_handover_events.csv"), index=False)
 
         # Esporta Throughput Tracker
         if self.thr_tracker:
             df_thr = pd.DataFrame(self.thr_tracker)
-            output_folder_thr = f"{cluster_name} throughput_preho"
+            output_folder_thr = f"{cluster_name} throughput_{label}"
             os.makedirs(output_folder_thr, exist_ok=True)
             df_thr.to_csv(os.path.join(output_folder_thr, f"{self.id}_thr_over_time.csv"), index=False)
 

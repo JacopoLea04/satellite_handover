@@ -11,23 +11,38 @@ from cluster import Cluster
 from channel import sc9_parameters, sc6_parameters
 
 # ==============================================================================
+# 🚀 DASHBOARD DI CONFIGURAZIONE (PAPER IEEE)
+# ==============================================================================
+# ISTRUZIONI PER GENERARE I DATI COMPARATIVI:
+#
+# -> TEST 1: LA BASELINE (Rete greedy senza intelligenza)
+#    1. Vai in 'sdn_controller.py' e imposta: self.SIMULATION_MODE = 'BASELINE'
+#    2. Imposta qui sotto: SIM_LABEL = "baseline"
+#    3. Avvia questo file.
+#
+# -> TEST 2: IL TUO SDN IBRIDO (La Rete Intelligente)
+#    1. Vai in 'sdn_controller.py' e imposta: self.SIMULATION_MODE = 'SDN_PROPOSED'
+#    2. Imposta qui sotto: SIM_LABEL = "sdn"
+#    3. Avvia questo file.
+# ==============================================================================
+
+# [MODIFICA QUI] Scegli il nome per le cartelle di output per non sovrascrivere i dati!
+SIM_LABEL = "sdn"  
+
+# ==============================================================================
 # CONFIGURAZIONE INIZIALE E SCENARIO
 # ==============================================================================
 df_name_1 = "250km_sc9_padova.csv" 
 ho_condition_1 = ("ELEVATION", 30)
 
-# ==============================================================================
-# PARAMETRI ARCHITETTURA SDN
-# ==============================================================================
-# "PREHO": Attiva l'SDN Controller globale (Algoritmo Ungherese + TTS).
-# Altre opzioni legacy (per benchmark): "RANDOM", "MAX_ELEVATION", "MAX_VISIBILITY"
+# Lasciare sempre su "PREHO". Il vero deviatore logico è dentro sdn_controller.py
 sat_selection_condition_1 = "PREHO"
 
 enable_elevation_threshold = True
 elevation_threshold = 30
 
-simTime = timedelta(minutes=15)  # Durata simulazione (90 minuti)
-num_ues = 100
+simTime = timedelta(minutes=30)  # Durata simulazione (30 minuti)
+num_ues = 300
 mu_inter = 30 * 1e-3  # Costo fisico Inter-HO (30 ms)
 mu_intra = 1 * 1e-3   # Costo fisico Intra-HO (1 ms)
 servers = 1
@@ -40,7 +55,7 @@ num_beams = 25
 # ==============================================================================
 # PARSING ARGOMENTI & INIZIALIZZAZIONE
 # ==============================================================================
-parser = argparse.ArgumentParser(description="Satellite SDN Simulation Script (6G NTN)")
+parser = argparse.ArgumentParser(description="Satellite SDN Simulation Script ")
 parser.add_argument('--servers', type=int, default=servers, help='Number of servers per node')
 parser.add_argument('--num_ues', type=int, default=num_ues, help='Number of User Equipments')
 args = parser.parse_args()
@@ -74,9 +89,10 @@ total_iterations = int((end_sim_time - time).total_seconds())
 # ==============================================================================
 # SIMULATION MAIN LOOP (IL METRONOMO)
 # ==============================================================================
-print("\n=== Avvio Simulazione basata su Architettura SDN ===")
+print(f"\n=== Avvio Simulazione basata su Architettura SDN (Label: {SIM_LABEL}) ===")
 
-with tqdm(total=total_iterations, desc="Simulating") as pbar:
+# Aggiunto dynamic_ncols=True e bar_format per forzare il terminale a stampare la percentuale al 100%
+with tqdm(total=total_iterations, desc="Simulating", dynamic_ncols=True, bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{percentage:3.0f}%]") as pbar:
     while time < end_sim_time:
         # Il monitor gestisce telemetria MAC e innesca l'SDN Controller
         cluster1.monitor(time, service_sats, ho_condition_1, sat_selection_condition_1)
@@ -92,7 +108,7 @@ print("\nSimulazione di Rete Completata!")
 # ==============================================================================
 print("\n=== Calcolo Analitiche Avanzate (Doppler Shift) ===")
 
-with tqdm(total=num_ues, desc="Processing Analytics") as pbar:
+with tqdm(total=num_ues, desc="Processing Analytics", dynamic_ncols=True, bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{percentage:3.0f}%]") as pbar:
     for cluster in clusters: 
         frame = cluster.frame
 
@@ -148,9 +164,9 @@ with tqdm(total=num_ues, desc="Processing Analytics") as pbar:
 print("\n=== Esportazione Dataframes e Chiusura Nodi ===")
 
 output_folders = (
-    [f"{cluster.name} dataframes_preho" for cluster in clusters] +
-    [f"{cluster.name} throughput_preho" for cluster in clusters] +
-    ["Satellite dataframes_preho"]
+    [f"{cluster.name} dataframes_{SIM_LABEL}" for cluster in clusters] +
+    [f"{cluster.name} throughput_{SIM_LABEL}" for cluster in clusters] +
+    [f"Satellite dataframes_{SIM_LABEL}"]
 )
 
 for folder in output_folders:
@@ -158,16 +174,16 @@ for folder in output_folders:
         shutil.rmtree(folder)
     os.makedirs(folder, exist_ok=True)
 
-with tqdm(total=len(service_sats), desc="Deallocazione Satelliti") as pbar:
+with tqdm(total=len(service_sats), desc="Deallocazione Satelliti", dynamic_ncols=True, bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{percentage:3.0f}%]") as pbar:
     for name, sat in service_sats.items():
-        sat.deactivate()
+        sat.deactivate(SIM_LABEL)
         pbar.update(1)
 
-with tqdm(total=num_ues, desc="Esportazione Telemetria UE") as pbar:
+with tqdm(total=num_ues, desc="Esportazione Telemetria UE", dynamic_ncols=True, bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{percentage:3.0f}%]") as pbar:
     for cluster in clusters:
         for mini_cluster in cluster.list_beams:
             for ue in mini_cluster.list_ues:
-                ue.deactivate(cluster.name)
+                ue.deactivate(cluster.name, SIM_LABEL)
                 pbar.update(1)
 
-print("\nTerminazione Script. Log salvati con successo.")
+print(f"\nTerminazione Script. Log salvati con successo in modalità {SIM_LABEL}.")

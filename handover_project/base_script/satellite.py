@@ -84,13 +84,13 @@ class Satellite:
 
             return handover_info
 
-        def deactivate(self):
+        def deactivate(self, label):
             """
             Esporta il log di tutte le transizioni fisiche elaborate da questo nodo in un file CSV.
             """
             if self.handover_tracker:
                 df = pd.DataFrame(self.handover_tracker)
-                output_folder = "Satellite dataframes_preho"
+                output_folder = f"Satellite dataframes_{label}"
                 os.makedirs(output_folder, exist_ok=True)
                 
                 filename = f"{self.satellite.name}_handover_events.csv"
@@ -109,13 +109,13 @@ class Satellite:
             self.connected_ues[beam_index] -= 1
         return self.connected_ues
 
-    def deactivate(self):
+    def deactivate(self, label):
         """
         Disattiva il satellite. Termina il ciclo vitale del nodo chiamando 
         il metodo deactivate dell'Handover Manager per salvare i dati.
         """
         if self.handover_manager:
-            self.handover_manager.deactivate()
+            self.handover_manager.deactivate(label)
             self.handover_manager = None
 
     def get_position(self, time):
