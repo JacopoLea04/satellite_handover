@@ -1,3 +1,10 @@
+"""
+This file implements the Centralized Software-Defined Networking (SDN) Controller for a Non-Terrestrial Network (NTN) LEO satellite constellation. 
+It provides a holistic framework for predictive handover management, transitioning from a legacy 'Active UE' paradigm to a centralized 'Passive UE' approach. 
+The controller utilizes a deterministic Digital Twin, Constrained Resource Virtualization (Hard Cap), Bipartite Matching (Kuhn-Munkres) with Shannon capacity constraints, and dual-stage temporal filters (Asymmetric TTT and TTS) to mitigate ping-pong effects and RACH signaling storms. 
+A baseline greedy algorithm is also included for comparative evaluations.
+"""
+
 import numpy as np
 import utils
 from scipy.optimize import linear_sum_assignment
@@ -9,20 +16,17 @@ from channel_parameters import ChannelParameters
 
 class SDN_Controller:
     def __init__(self, cluster, scenario, dataframe):
+        """
+        Initializes the SDN controller, defining the simulation mode ('BASELINE' or 'SDN_PROPOSED') and the necessary hyperparameters. 
+        It configures the capacity limits, hysteresis penalties, elevation thresholds, temporal filters (TTT), and Markov chain parameters for weather fading simulation. 
+        It also preloads a telemetric hash map (Digital Twin) for fast orbit propagation access.
+        """
         self.cluster = cluster
         self.scenario = scenario
         self.df = dataframe
         
-        # =================================================================
-        # TOGGLE DELLA SIMULAZIONE (PER IL PAPER IEEE)
-        # Scegliere 'BASELINE' per il test Greedy (Solo Max Elevazione)
-        # Scegliere 'SDN_PROPOSED' per l'architettura ibrida ottimizzata
-        # =================================================================
-        self.SIMULATION_MODE = 'SDN_PROPOSED'  # <--- CAMBIA QUESTO VALORE PER TESTARE
+        self.SIMULATION_MODE = 'SDN_PROPOSED'  
         
-        # -----------------------------------------------------------------
-        # PARAMETRI OTTIMIZZAZIONE E STABILITA' (SDN_PROPOSED)
-        # -----------------------------------------------------------------
         self.WATER_FILLING_LIMIT = 200.0  
         self.INTRA_HO_PENALTY = 0.30      
         self.INTER_HO_PENALTY = 0.20      
@@ -36,11 +40,9 @@ class SDN_Controller:
         self.TTT_CRITICAL = 1             
         self.pending_handovers = {}       
         
-        # Pilastro 1: Latenza e Rumore Control Plane
         self.tau_c = 0.250  
         self.sigma_theta = 0.5  
         
-        # Catena di Markov a 2 Stati (Meteo)
         self.dt_markov = 1.0 
         self.T_good = 45.0 
         self.T_bad = 15.0  
@@ -59,7 +61,8 @@ class SDN_Controller:
 
     def run_optimization(self, time, service_sats, visible_sats_for_each_minicluster):
         """
-        Funzione Wrapper: smista il traffico in base alla modalità di test scelta.
+        Wrapper function that acts as the main entry point for the handover orchestration. 
+        It routes the traffic assignment process to either the baseline greedy algorithm or the proposed hybrid SDN optimization based on the selected simulation mode.
         """
         if self.SIMULATION_MODE == 'BASELINE':
             self._run_baseline_greedy(time, service_sats, visible_sats_for_each_minicluster)
@@ -68,9 +71,9 @@ class SDN_Controller:
 
     def _run_baseline_greedy(self, time, service_sats, visible_sats_for_each_minicluster):
         """
-        BASELINE GREEDY CONTROLLER (UE-Driven)
-        Assegna l'utente al satellite visibile con l'elevazione massima, ignorando
-        il carico, il meteo, le penalità e il TTT. Serve per l'Ablation Study.
+        Executes the Baseline Greedy Controller logic, representing legacy Active-UE standards. 
+        It assigns each user equipment (UE) to the visible satellite providing the maximum elevation angle, completely ignoring network congestion, channel weather states, hysteresis penalties, and temporal triggers. 
+        Execution is scheduled immediately.
         """
         all_ues = [(ue, mc) for mc in self.cluster.list_beams for ue in mc.list_ues]
         if not all_ues: return
@@ -83,7 +86,6 @@ class SDN_Controller:
             mc_lat, mc_lon, mc_alt = mini_cluster.position
             valid_sats_beams = visible_sats_for_each_minicluster[mini_cluster.index]
             
-            # Ricerca ingorda del satellite migliore
             for sat_tuple, beam_idx in valid_sats_beams:
                 target_lat, target_lon, target_alt = sat_tuple[1:4]
                 elev = ChannelParameters.elevation_angle_deg(mc_lat, mc_lon, target_lat, target_lon, target_alt)
@@ -93,7 +95,6 @@ class SDN_Controller:
                     best_sat_name = sat_tuple[0]
                     best_beam_idx = beam_idx
                     
-            # Esecuzione immediata (Nessun TTT, nessuna matrice)
             if best_sat_name:
                 if best_sat_name not in service_sats:
                     service_sats[best_sat_name] = Satellite(
@@ -109,10 +110,13 @@ class SDN_Controller:
 
     def _run_hybrid_sdn(self, time, service_sats, visible_sats_for_each_minicluster):
         """
-        IL NOSTRO ALGORITMO OTTIMIZZATO 
-        Include Markov, Pre-Filtering, Matrice Shannon e Asymmetric TTT, TTS.
+        Executes the proposed Hybrid SDN handover optimization algorithm. 
+        This process consists of four main phases: 
+        1) Markov-based weather updates and capacity-aware pre-filtering to lock stable connections; 
+        2) Virtualization of physical resources applying the Hard Cap limit; 
+        3) Construction of a hybrid utility matrix incorporating Shannon Water-Filling, perceived geometry with noise, and hysteresis, followed by global bipartite matching via the Kuhn-Munkres algorithm; 
+        4) Application of Asymmetric Time-To-Trigger (TTT) and Temporal Trigger Spreading (TTS) to schedule execution windows, effectively mitigating RACH collisions and queueing delays.
         """
-        # [AGGIORNAMENTO MARKOV]
         if self.last_weather_update_time != time:
             for sat_data in [item for sublist in visible_sats_for_each_minicluster for item in sublist]:
                 sat_n = sat_data[0][0]
@@ -128,7 +132,6 @@ class SDN_Controller:
                     self.weather_state[sat_n] = 'G'
             self.last_weather_update_time = time
 
-        # [FASE 1: CAPACITY-AWARE PRE-FILTERING]
         all_ues = [(ue, mc) for mc in self.cluster.list_beams for ue in mc.list_ues]
         if not all_ues: return
 
@@ -176,7 +179,6 @@ class SDN_Controller:
         if not active_ues:
             return  
 
-        # [FASE 2: VIRTUALIZZAZIONE RISORSE & HARD CAP]
         virtual_beams = []
         for st, b_idx in available_beams:
             sig = f"{st[0]}_{b_idx}"
@@ -191,7 +193,6 @@ class SDN_Controller:
         if num_vbeams == 0: return
         cost_matrix = np.full((num_ues, num_vbeams), 1000.0)
 
-        # [FASE 3: MATRICE DEI COSTI]
         for i, (ue, mini_cluster) in enumerate(active_ues):
             curr_sat_obj, curr_beam_idx = ue.get_connection_info()
             curr_sat_name = curr_sat_obj.name if curr_sat_obj else None
@@ -234,10 +235,8 @@ class SDN_Controller:
 
                 cost_matrix[i, j] = -w_score 
 
-        # [OTTIMIZZAZIONE GLOBALE]
         row_ind, col_ind = linear_sum_assignment(cost_matrix)
         
-        # [FASE 4: ASYMMETRIC TIME-TO-TRIGGER]
         round_time_local = (time + timedelta(microseconds=500000)).replace(microsecond=0)
         t_minus_1 = round_time_local - timedelta(seconds=1)
 

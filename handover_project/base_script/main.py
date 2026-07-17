@@ -6,45 +6,29 @@ import os
 import shutil
 import utils
 from cluster import Cluster
-
-# Importiamo il modulo fisico appena creato
 from channel import sc9_parameters, sc6_parameters
 
-# ==============================================================================
-# 🚀 DASHBOARD DI CONFIGURAZIONE (PAPER IEEE)
-# ==============================================================================
-# ISTRUZIONI PER GENERARE I DATI COMPARATIVI:
-#
-# -> TEST 1: LA BASELINE (Rete greedy senza intelligenza)
-#    1. Vai in 'sdn_controller.py' e imposta: self.SIMULATION_MODE = 'BASELINE'
-#    2. Imposta qui sotto: SIM_LABEL = "baseline"
-#    3. Avvia questo file.
-#
-# -> TEST 2: IL TUO SDN IBRIDO (La Rete Intelligente)
-#    1. Vai in 'sdn_controller.py' e imposta: self.SIMULATION_MODE = 'SDN_PROPOSED'
-#    2. Imposta qui sotto: SIM_LABEL = "sdn"
-#    3. Avvia questo file.
-# ==============================================================================
+"""
+Configuration and Initialization Phase.
+Defines simulation hyperparameters, output directory labels, parses command-line arguments, 
+loads the pre-computed orbital ephemerides (Digital Twin), and initializes the geographic cluster 
+which internally instantiates the SDN Controller. It also performs a bootstrap phase to establish initial connections.
+"""
 
-# [MODIFICA QUI] Scegli il nome per le cartelle di output per non sovrascrivere i dati!
 SIM_LABEL = "sdn"  
 
-# ==============================================================================
-# CONFIGURAZIONE INIZIALE E SCENARIO
-# ==============================================================================
 df_name_1 = "250km_sc9_padova.csv" 
 ho_condition_1 = ("ELEVATION", 30)
 
-# Lasciare sempre su "PREHO". Il vero deviatore logico è dentro sdn_controller.py
 sat_selection_condition_1 = "PREHO"
 
 enable_elevation_threshold = True
 elevation_threshold = 30
 
-simTime = timedelta(minutes=30)  # Durata simulazione (30 minuti)
+simTime = timedelta(minutes=30)  
 num_ues = 300
-mu_inter = 30 * 1e-3  # Costo fisico Inter-HO (30 ms)
-mu_intra = 1 * 1e-3   # Costo fisico Intra-HO (1 ms)
+mu_inter = 30 * 1e-3  
+mu_intra = 1 * 1e-3   
 servers = 1
 scenario = sc9_parameters
 handover_timer = 40
@@ -52,10 +36,7 @@ handover_timer = 40
 beam_size_km = 250
 num_beams = 25
 
-# ==============================================================================
-# PARSING ARGOMENTI & INIZIALIZZAZIONE
-# ==============================================================================
-parser = argparse.ArgumentParser(description="Satellite SDN Simulation Script ")
+parser = argparse.ArgumentParser(description="Satellite SDN Simulation Script")
 parser.add_argument('--servers', type=int, default=servers, help='Number of servers per node')
 parser.add_argument('--num_ues', type=int, default=num_ues, help='Number of User Equipments')
 args = parser.parse_args()
@@ -63,11 +44,9 @@ args = parser.parse_args()
 servers = args.servers
 num_ues = args.num_ues
 
-# Caricamento del Digital Twin (Pre-computed Orbital Data)
 print(f"\nCaricamento Dataset Orbitale: {df_name_1}...")
 data_frame_1 = pd.read_csv(df_name_1)
 
-# Istanziazione Topologia (Il Cluster istanzia autonomamente il Controller SDN)
 cluster1 = Cluster(
     "Cluster1", (45.40996, 11.89261, 0), num_ues, beam_size_km, num_beams, 
     data_frame_1, servers, mu_inter, mu_intra, scenario, 
@@ -78,7 +57,6 @@ clusters = [cluster1]
 time = datetime(2026, 2, 19, 0, 0, 0) 
 end_sim_time = time + simTime
 
-# Fase di Bootstrap: Connessione iniziale randomica (caotica) per testare l'SDN
 service_sats = {}
 for cluster in clusters:    
     cluster.initial_connection_phase(time, service_sats, handover_timer)
@@ -86,15 +64,16 @@ for cluster in clusters:
 time += timedelta(seconds=1)
 total_iterations = int((end_sim_time - time).total_seconds())
 
-# ==============================================================================
-# SIMULATION MAIN LOOP (IL METRONOMO)
-# ==============================================================================
+"""
+Simulation Main Loop.
+Advances the simulation time step by step. At each second, it triggers the cluster monitor 
+to evaluate MAC telemetry and invoke the SDN controller for global handover orchestration.
+"""
+
 print(f"\n=== Avvio Simulazione basata su Architettura SDN (Label: {SIM_LABEL}) ===")
 
-# Aggiunto dynamic_ncols=True e bar_format per forzare il terminale a stampare la percentuale al 100%
 with tqdm(total=total_iterations, desc="Simulating", dynamic_ncols=True, bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{percentage:3.0f}%]") as pbar:
     while time < end_sim_time:
-        # Il monitor gestisce telemetria MAC e innesca l'SDN Controller
         cluster1.monitor(time, service_sats, ho_condition_1, sat_selection_condition_1)
         
         pbar.set_postfix(time=time.strftime("%H:%M:%S"))
@@ -103,16 +82,18 @@ with tqdm(total=total_iterations, desc="Simulating", dynamic_ncols=True, bar_for
 
 print("\nSimulazione di Rete Completata!")
 
-# ==============================================================================
-# POST-PROCESSING E ANALYTICS (DOPPLER SHIFT)
-# ==============================================================================
+"""
+Post-Processing and Analytics.
+Computes the Doppler shift for both uplink and downlink using an optimized O(1) hash map 
+of satellite positions to drastically reduce computational overhead over the collected telemetry.
+"""
+
 print("\n=== Calcolo Analitiche Avanzate (Doppler Shift) ===")
 
 with tqdm(total=num_ues, desc="Processing Analytics", dynamic_ncols=True, bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{percentage:3.0f}%]") as pbar:
     for cluster in clusters: 
         frame = cluster.frame
 
-        # Ottimizzazione computazionale estrema: Mappa Hash O(1) per posizioni orbitali
         sat_positions_map = {
             (str(sat), str(t)): (lat, lon, alt)
             for sat, t, lat, lon, alt in zip(
@@ -158,9 +139,12 @@ with tqdm(total=num_ues, desc="Processing Analytics", dynamic_ncols=True, bar_fo
                 pbar.set_postfix(time=t_val.strftime("%H:%M:%S") if isinstance(t_val, datetime) else str(t_val))
                 pbar.update(1)
 
-# ==============================================================================
-# ESPORTAZIONE DATI E SPEGNIMENTO
-# ==============================================================================
+"""
+Data Export and Node Deallocation.
+Clears previous output directories, sequentially deactivates all active satellite nodes and UEs, 
+and exports their tracked telemetry into structured CSV files for the comparative analysis.
+"""
+
 print("\n=== Esportazione Dataframes e Chiusura Nodi ===")
 
 output_folders = (

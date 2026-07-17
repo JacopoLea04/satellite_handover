@@ -4,12 +4,8 @@ import math
 import pandas as pd
 
 from channel_parameters import ChannelParameters
-# Importiamo il nuovo modulo fisico per garantire la retro-compatibilità
 from channel import Channel, sc6_parameters, sc9_parameters
 
-# =====================================================================
-# GEOMETRIA E PROIEZIONE ORBITALE
-# =====================================================================
 
 def lla_to_ecef(lat, lon, alt):
     # seting the parameters for the WGS84
@@ -174,9 +170,6 @@ def compute_relative_velocity(ue_pos, old_pos, curr_pos, fut_pos, dt=1.0):
  
     return radial_velocity
 
-# =====================================================================
-# DATA MANIPULATION (PANDAS/DATAFRAMES)
-# =====================================================================
 
 def get_satellites_at_time(df, target_time):
     satellites = []
@@ -248,10 +241,6 @@ def get_sat_positions(frame, sat_name, time):
         pass
 
     return (old_lat, old_lon, old_alt), (curr_lat, curr_lon, curr_alt), (fut_lat, fut_lon, fut_alt)
-
-# =====================================================================
-# WRAPPERS DI RETROCOMPATIBILITÀ PER IL LIVELLO FISICO (Delegati a channel.py)
-# =====================================================================
 
 def compute_snr(distance_m, parameters):
     return Channel.compute_snr(distance_m, parameters)

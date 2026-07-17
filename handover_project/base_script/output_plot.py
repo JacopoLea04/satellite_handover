@@ -8,43 +8,22 @@ from pathlib import Path
 from scipy.stats import gaussian_kde
 import numpy as np
 import re
-import seaborn as sns # Aggiunto per le distribuzioni comparative
+import seaborn as sns 
 
-pd.options.mode.chained_assignment = None  # default='warn'
+pd.options.mode.chained_assignment = None
 
-# ========================================================================================================= # 
-# CONFIGURAZIONE PLOT
-# ========================================================================================================= # 
-# 1. How many satellites in visibility over time
-visible_sats_over_time = True
-# 2. Average handover rate 
-average_handover_rate = True
-# 3. Average handover duration
-average_handover_duration = True
-# 4. Average service time before the next handover event
-average_service_time = True
-# 5. Number of handover processes handled by each satellite
-ho_handled = True
-# 6. Average number and duration of out of services
-out_of_service = True
-# 7. Throughput considering HO outage time 
-get_throuthput_ho_v2 = True
-# 8. Throughput CDF (Standard IEEE)
-cdf_throughput = True
-# 9. Number of ping-pong handovers
-ping_pong_handovers = True
-# 10. Doppler Shift Distribution
-doppler_shift_dist = True
-
-# --- NUOVA SEZIONE: GRAFICI COMPARATIVI ---
-# 11. Genera grafici sovrapposti Baseline vs SDN (salvati in plots_comparison)
+visible_sats_over_time = False
+average_handover_rate = False
+average_handover_duration = False
+average_service_time = False
+ho_handled = False
+out_of_service = False
+get_throuthput_ho_v2 = False
+cdf_throughput = False
+ping_pong_handovers = False
+doppler_shift_dist = False
 comparative_plots = True
-
-# Salva i valori dei plot nei CSV
 save_plot_values = True
-
-# Metti True se vuoi processare i risultati del nuovo algoritmo PREHO.
-# Metti False se vuoi processare i risultati del simulatore standard AVL_THR (Baseline).
 USE_PREHO_DATA = True
 
 if USE_PREHO_DATA:
@@ -60,9 +39,6 @@ else:
 
 os.makedirs(output_folder, exist_ok=True)
 
-# ================================================================================================
-# PARAMETRI GLOBALI
-# ================================================================================================
 df_name = "250km_sc9_padova.csv"
 padova_lat, padova_lon = 45.40996, 11.89261
 dfnames = [df_name] 
@@ -81,11 +57,11 @@ padova_positions = utils.calculate_beams_grid(padova_lat, padova_lon, beam_size_
 
 colors1 = ['skyblue', 'lightcoral', 'palegreen', 'mocassin', 'plum', 'tan', 'lightpink', 'lightgray', 'darkkhaki', 'paleturquoise']
 
-
-# ========================================================================================================= # 
-# 1. VISIBLE SATELLITES & BEAMS
-# ========================================================================================================= # 
 if visible_sats_over_time:
+    """
+    Generates time-series plots showing the physical resources available over the target cluster.
+    It plots the number of visible satellites and the number of visible beams over the simulation duration.
+    """
     print("1. Printing the number of visible satellites ...")
     plt.figure(figsize=(10, 5))
     index = 0
@@ -180,11 +156,10 @@ if visible_sats_over_time:
         plt.close()
     print("   Completed!\n")
 
-
-# ========================================================================================================= # 
-# 2. AVERAGE HANDOVER RATE (PDF)
-# ========================================================================================================= # 
 if average_handover_rate:
+    """
+    Parses UE dataframes to calculate and plot the Probability Density Function (PDF) of the average number of intra-satellite and inter-satellite handovers performed per UE.
+    """
     print("2. Printing the average handover rate ...")
     fig, ax = plt.subplots(figsize=(12, 6))
 
@@ -250,11 +225,10 @@ if average_handover_rate:
     plt.close(fig)
     print("   Completed!\n")
 
-
-# ========================================================================================================= # 
-# 3. AVERAGE HANDOVER DURATION (PDF)
-# ========================================================================================================= # 
 if average_handover_duration:
+    """
+    Computes and plots the Probability Density Function of the execution duration for intra and inter handovers, extracting processing delays from the UE telemetry data.
+    """
     print("3. Printing the average handover duration ...")
     fig, ax = plt.subplots(figsize=(12, 6))
 
@@ -331,11 +305,10 @@ if average_handover_duration:
     plt.close(fig)
     print("   Completed!\n")
 
-
-# ========================================================================================================= # 
-# 4. AVERAGE SERVICE TIME
-# ========================================================================================================= # 
 if average_service_time:
+    """
+    Evaluates topological stability by calculating the continuous service time a UE maintains with a single beam or satellite before a new handover event is triggered.
+    """
     print("4. Printing the average time before next handover ...")
     fig, ax = plt.subplots(figsize=(12, 6))
 
@@ -429,11 +402,10 @@ if average_service_time:
     plt.close(fig)
     print("   Completed!\n")
 
-
-# ========================================================================================================= # 
-# 5. HANDOVERS HANDLED BY EACH SATELLITE
-# ========================================================================================================= # 
 if ho_handled:
+    """
+    Analyzes the signaling load on the space segment by plotting the cumulative distribution of handovers processed by each individual satellite node.
+    """
     print("5. Priting the average number of handover handled for each satellite ...")
     folder_path = Path('Satellite' + dataframes_folder_suffix)
     intra_ho_count, inter_ho_count = [], []
@@ -501,11 +473,10 @@ if ho_handled:
     plt.close(fig)
     print("   Completed!\n")
 
-
-# ========================================================================================================= #
-# 6. AVERAGE OUT OF SERVICE
-# ========================================================================================================= #
 if out_of_service:
+    """
+    Parses connection states to calculate and plot the continuous Out of Service (OOS) duration, representing the downtime a UE experiences between link loss and restoration.
+    """
     print("6. Printing the average out of service time (lost_conn to rest_conn) ...")
     fig, ax = plt.subplots(figsize=(12, 6))
 
@@ -567,11 +538,10 @@ if out_of_service:
     plt.close(fig)
     print("   Completed!\n")
 
-
-# ========================================================================================================= #
-# 7. AVERAGE THROUGHPUT OVER TIME (CON INTERVALLO DI CONFIDENZA 95%)
-# ========================================================================================================= #
 if get_throuthput_ho_v2:
+    """
+    Plots the average downlink throughput over time across all UEs, shading the graph with a 95% statistical confidence interval.
+    """
     print("7. Plotting average throughput with 95% CI ...")
     fig, ax = plt.subplots(figsize=(12, 6))
 
@@ -586,18 +556,15 @@ if get_throuthput_ho_v2:
         min_len = min(len(t) for t in ues_thr)
         ues_thr = [t[:min_len] for t in ues_thr]
         
-        # Calcolo Statistico
         data_array = np.array(ues_thr)
         avg_thr = np.mean(data_array, axis=0)
         std_thr = np.std(data_array, axis=0)
         n = data_array.shape[0]
-        ci_95 = 1.96 * (std_thr / np.sqrt(n)) # Intervallo di confidenza 95%
+        ci_95 = 1.96 * (std_thr / np.sqrt(n)) 
         
         time_vector = pd.date_range(start=simTimeStart, periods=len(avg_thr), freq='1s')
         
-        # Plot Media
         ax.plot(time_vector, avg_thr, label=f"{fname} (Mean)", color=plt.cm.tab10(i))
-        # Plot Intervallo di Confidenza (Ombreggiato)
         ax.fill_between(time_vector, (avg_thr - ci_95), (avg_thr + ci_95), color=plt.cm.tab10(i), alpha=0.2)
 
     ax.set_title('Average DL Throughput (with 95% Confidence Interval)')
@@ -608,11 +575,10 @@ if get_throuthput_ho_v2:
     fig.savefig(os.path.join(output_folder, "7-DL_throughput_ho.png"), dpi=300, bbox_inches='tight')
     plt.close('all')
 
-
-# ========================================================================================================= #
-# 8. CDF DEL THROUGHPUT (Standard IEEE)
-# ========================================================================================================= #
 if cdf_throughput:
+    """
+    Generates the Cumulative Distribution Function (CDF) of the downlink throughput, highlighting the 5th percentile edge as required by IEEE standards.
+    """
     print("8. Plotting Throughput CDF (IEEE Standard) ...")
     fig, ax = plt.subplots(figsize=(10, 6))
 
@@ -642,11 +608,10 @@ if cdf_throughput:
     fig.savefig(os.path.join(output_folder, "8-CDF_Throughput.png"), dpi=300, bbox_inches='tight')
     plt.close('all')
 
-
-# ========================================================================================================= #
-# 9. PING-PONG HANDOVERS
-# ========================================================================================================= #
 if ping_pong_handovers:
+    """
+    Calculates and visualizes the average number of ping-pong handover events (redundant transitions between the same nodes) per user equipment.
+    """
     print("9. Plotting Ping-Pong Handovers Analytics ...")
     fig, ax = plt.subplots(figsize=(8, 6))
     
@@ -679,11 +644,10 @@ if ping_pong_handovers:
     fig.savefig(os.path.join(output_folder, "9-Ping_Pong_Analytics.png"), dpi=300, bbox_inches='tight')
     plt.close('all')
 
-
-# ========================================================================================================= #
-# 10. DOPPLER SHIFT DISTRIBUTION
-# ========================================================================================================= #
 if doppler_shift_dist:
+    """
+    Extracts telemetry variables to plot the probability density distribution of the downlink Doppler shift experienced by the UEs.
+    """
     print("10. Plotting Doppler Shift Distribution ...")
     fig, ax = plt.subplots(figsize=(12, 6))
 
@@ -719,17 +683,15 @@ if doppler_shift_dist:
     plt.close('all')
     print("   Completed!\n")
 
-
-# ========================================================================================================= #
-# 11. SATELLITE LOAD DISTRIBUTION (CON DEVIAZIONE STANDARD)
-# ========================================================================================================= #
 satellite_load_distribution = True
 
 if satellite_load_distribution:
+    """
+    Evaluates network congestion over time by calculating and plotting the maximum, average, and standard deviation of the user load distributed across the visible satellite nodes.
+    """
     print("11. Plotting Satellite Load Distribution (Max, Avg, Std) ...")
     fig, ax = plt.subplots(figsize=(12, 6))
 
-    # Convertiamo simTimeStart in un oggetto pandas datetime per uniformità
     sim_start_pd = pd.to_datetime(simTimeStart)
 
     for i, (df_name_iter, fname) in enumerate(zip(dfnames, fnames)):
@@ -743,7 +705,6 @@ if satellite_load_distribution:
                 df = pd.read_csv(file_path)
                 if df.empty: continue
                 
-                # FIX TIMEZONE
                 df['arrival_time'] = pd.to_datetime(df['arrival_time'], errors='coerce').dt.tz_localize(None)
                 df = df.sort_values('arrival_time')
                 
@@ -775,13 +736,11 @@ if satellite_load_distribution:
             else:
                 max_load_series.append(0); avg_load_series.append(0); std_load_series.append(0)
 
-        # FIX ERRORE DIMENSIONE: Ricalcoliamo l'asse del tempo in base alla reale lunghezza dei dati
         time_vector = pd.date_range(start=simTimeStart, periods=len(avg_load_series), freq='1s')
         
         ax.plot(time_vector, max_load_series, label=f"{fname}: Max Load", color='firebrick', linewidth=2)
         ax.plot(time_vector, avg_load_series, label=f"{fname}: Avg Load", color='royalblue', linestyle='--')
         
-        # BANDA DI VARIANZA (Mean +/- Std)
         avg_arr = np.array(avg_load_series)
         std_arr = np.array(std_load_series)
         ax.fill_between(time_vector, avg_arr - std_arr, avg_arr + std_arr, color='royalblue', alpha=0.2, label=f"{fname}: Std Dev")
@@ -792,177 +751,60 @@ if satellite_load_distribution:
     ax.legend(loc='upper right')
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%M:%S'))
     
-    # Aggiunta linea del limite di Shannon anche qui
     ax.axhline(y=150, color='black', linestyle='-.', alpha=0.8, label='Shannon Capacity Hard Cap')
     
     fig.savefig(os.path.join(output_folder, "11-Satellite_Load_Distribution.png"), dpi=300, bbox_inches='tight')
     plt.close('all')
     print("    Completed!\n")
 
-# ========================================================================================================= #
-# 12. COMPARATIVE PLOTS (BASELINE VS SDN) - DETAILED FOR IEEE PAPER
-# ========================================================================================================= #
 if comparative_plots:
-    print("12. Generating Highly Detailed Comparative Plots (Baseline vs SDN)...")
-    comp_out_dir = "plots_comparison"
+    """
+    Generates the comprehensive 4-way comparative plots for the IEEE paper. 
+    It loops through pre-computed dataset directories to benchmark the Proposed Hybrid SDN against Active-UE baselines, plotting QoS metrics such as global throughput, average load balancing, service time, and execution durations.
+    """
+    print("12. Generating 4-Way Comparative Plots...")
+    import seaborn as sns
+    import matplotlib.dates as mdates
+    import warnings
+    warnings.filterwarnings('ignore', category=UserWarning)
+    
+    comp_out_dir = "plots_comparison_4way"
     os.makedirs(comp_out_dir, exist_ok=True)
     
     cluster_idx = 1
-    dir_base_df = f"Cluster{cluster_idx} dataframes_baseline"
-    dir_sdn_df = f"Cluster{cluster_idx} dataframes_sdn"
-    dir_base_thr = f"Cluster{cluster_idx} throughput_baseline"
-    dir_sdn_thr = f"Cluster{cluster_idx} throughput_sdn"
+    
+    dirs = {
+        "Active_MaxElev": {
+            "df": f"Cluster{cluster_idx} dataframes_active_max_elevation",
+            "thr": f"Cluster{cluster_idx} throughput_active_max_elevation",
+            "color": "#d62728", "style": ":", "label": "Active UE (Max Elev)"
+        },
+        "Active_AvlThr": {
+            "df": f"Cluster{cluster_idx} dataframes_active_average_throughput",
+            "thr": f"Cluster{cluster_idx} throughput_active_average_throughput",
+            "color": "#ff7f0e", "style": "-.", "label": "Active UE (Avl Thr)"
+        },
+        "Passive_Baseline": {
+            "df": f"Cluster{cluster_idx} dataframes_baseline",
+            "thr": f"Cluster{cluster_idx} throughput_baseline",
+            "color": "#2ca02c", "style": "--", "label": "Passive SDN (Greedy)"
+        },
+        "Passive_Proposed": {
+            "df": f"Cluster{cluster_idx} dataframes_sdn",
+            "thr": f"Cluster{cluster_idx} throughput_sdn",
+            "color": "#1f77b4", "style": "-", "label": "Proposed Hybrid SDN"
+        }
+    }
 
-    # Helpers globali
     sim_start_pd = pd.to_datetime(simTimeStart)
     total_seconds = int((simTimeEnd - simTimeStart).total_seconds())
     time_vector = pd.date_range(start=simTimeStart, periods=total_seconds, freq='1s')
 
-    # --- 12A & 12B: COMPARAZIONE HANDOVER RATE (DIVISO IN INTRA E INTER) ---
-    def get_detailed_ho_counts(folder_path):
-        intra_counts, inter_counts = [], []
-        for file_path in Path(folder_path).glob('*.csv'):
-            try:
-                df = pd.read_csv(file_path)
-                if 'event_type' in df.columns:
-                    intra_counts.append(len(df[df['event_type'] == 'intra_ho']))
-                    inter_counts.append(len(df[df['event_type'] == 'inter_ho']))
-            except Exception: pass
-        return intra_counts, inter_counts
-
-    base_intra_c, base_inter_c = get_detailed_ho_counts(dir_base_df)
-    sdn_intra_c, sdn_inter_c = get_detailed_ho_counts(dir_sdn_df)
-    
-    if base_intra_c and sdn_intra_c:
-        # PLOT 1A: INTRA-HANDOVER RATE
-        plt.figure(figsize=(8, 5), dpi=300)
-        if min(base_intra_c) != max(base_intra_c): sns.kdeplot(data=base_intra_c, label='Baseline (Greedy)', color='#d62728', fill=True, alpha=0.3)
-        if min(sdn_intra_c) != max(sdn_intra_c): sns.kdeplot(data=sdn_intra_c, label='Proposed SDN', color='#1f77b4', fill=True, alpha=0.5)
-        plt.title('Intra-Satellite Handover Rate Comparison')
-        plt.xlabel('Number of Intra-Handovers per UE')
-        plt.ylabel('Probability Density')
-        plt.legend(); plt.grid(True, linestyle=':', alpha=0.7); plt.tight_layout()
-        plt.savefig(os.path.join(comp_out_dir, "comp_1a_intra_handover_rate.pdf")); plt.close()
-
-        # PLOT 1B: INTER-HANDOVER RATE
-        plt.figure(figsize=(8, 5), dpi=300)
-        if min(base_inter_c) != max(base_inter_c): sns.kdeplot(data=base_inter_c, label='Baseline (Greedy)', color='#d62728', linestyle='--', fill=True, alpha=0.3)
-        if min(sdn_inter_c) != max(sdn_inter_c): sns.kdeplot(data=sdn_inter_c, label='Proposed SDN', color='#1f77b4', linestyle='-', fill=True, alpha=0.5)
-        plt.title('Inter-Satellite Handover Rate Comparison')
-        plt.xlabel('Number of Inter-Handovers per UE')
-        plt.ylabel('Probability Density')
-        plt.legend(); plt.grid(True, linestyle=':', alpha=0.7); plt.tight_layout()
-        plt.savefig(os.path.join(comp_out_dir, "comp_1b_inter_handover_rate.pdf")); plt.close()
-
-    # --- 12C & 12D: COMPARAZIONE HANDOVER DURATION (DIVISO IN INTRA E INTER) ---
-    def get_detailed_ho_durations(folder_path):
-        intra_dur, inter_dur = [], []
-        for file_path in Path(folder_path).glob('*.csv'):
-            try:
-                df = pd.read_csv(file_path)
-                # Calcolo per INTRA
-                df_intra = df[df['event_type'] == 'intra_ho']
-                if not df_intra.empty:
-                    arr = pd.to_datetime(df_intra['arrival_time'], errors='coerce', utc=True)
-                    dep = pd.to_datetime(df_intra['departure_time'], errors='coerce', utc=True)
-                    intra_dur.extend(((dep - arr).dt.total_seconds() * 1000).dropna().tolist())
-                # Calcolo per INTER
-                df_inter = df[df['event_type'] == 'inter_ho']
-                if not df_inter.empty:
-                    arr = pd.to_datetime(df_inter['arrival_time'], errors='coerce', utc=True)
-                    dep = pd.to_datetime(df_inter['departure_time'], errors='coerce', utc=True)
-                    inter_dur.extend(((dep - arr).dt.total_seconds() * 1000).dropna().tolist())
-            except Exception: pass
-        return intra_dur, inter_dur
-
-    base_intra_dur, base_inter_dur = get_detailed_ho_durations(dir_base_df)
-    sdn_intra_dur, sdn_inter_dur = get_detailed_ho_durations(dir_sdn_df)
-
-    if base_intra_dur and sdn_intra_dur:
-        # PLOT 2A: INTRA-HANDOVER DURATION
-        plt.figure(figsize=(8, 5), dpi=300)
-        
-        # Baseline
-        if min(base_intra_dur) != max(base_intra_dur): 
-            sns.kdeplot(data=base_intra_dur, label='Baseline (Greedy)', color='#d62728', fill=True, alpha=0.3)
-        else:
-            plt.axvline(x=base_intra_dur[0], color='#d62728', label='Baseline (Greedy) - Constant', linestyle='--', linewidth=2)
-            
-        # SDN
-        if min(sdn_intra_dur) != max(sdn_intra_dur): 
-            sns.kdeplot(data=sdn_intra_dur, label='Proposed SDN', color='#1f77b4', fill=True, alpha=0.5)
-        else:
-            plt.axvline(x=sdn_intra_dur[0], color='#1f77b4', label='Proposed SDN - Constant', linewidth=2)
-            
-        plt.title('Intra-Satellite Handover Duration Comparison')
-        plt.xlabel('Execution Duration [ms]')
-        plt.ylabel('Probability Density (Dirac Delta)')
-        plt.legend(); plt.grid(True, linestyle=':', alpha=0.7); plt.tight_layout()
-        plt.savefig(os.path.join(comp_out_dir, "comp_2a_intra_duration.pdf")); plt.close()
-
-    if base_inter_dur and sdn_inter_dur:
-        # PLOT 2B: INTER-HANDOVER DURATION
-        plt.figure(figsize=(8, 5), dpi=300)
-        
-        # Baseline
-        if min(base_inter_dur) != max(base_inter_dur): 
-            sns.kdeplot(data=base_inter_dur, label='Baseline (Greedy)', color='#d62728', fill=True, alpha=0.3)
-        else:
-            plt.axvline(x=base_inter_dur[0], color='#d62728', label='Baseline (Greedy) - Constant', linestyle='--', linewidth=2)
-            
-        # SDN
-        if min(sdn_inter_dur) != max(sdn_inter_dur): 
-            sns.kdeplot(data=sdn_inter_dur, label='Proposed SDN', color='#1f77b4', fill=True, alpha=0.5)
-        else:
-            plt.axvline(x=sdn_inter_dur[0], color='#1f77b4', label='Proposed SDN - Constant', linewidth=2)
-            
-        plt.title('Inter-Satellite Handover Duration Comparison')
-        plt.xlabel('Execution Duration [ms]')
-        plt.ylabel('Probability Density (Dirac Delta)')
-        plt.legend(); plt.grid(True, linestyle=':', alpha=0.7); plt.tight_layout()
-        plt.savefig(os.path.join(comp_out_dir, "comp_2b_inter_duration.pdf")); plt.close()
-
-    # --- 12E: COMPARAZIONE SERVICE TIME ---
-    def get_service_times(folder_path):
-        durations = []
-        for file_path in Path(folder_path).glob('*.csv'):
-            try:
-                df = pd.read_csv(file_path)
-                if df.empty: continue
-                df['arrival_time'] = pd.to_datetime(df['arrival_time'], errors='coerce', utc=True)
-                df = df.sort_values('arrival_time')
-                curr_sat, sat_start_time = None, None
-                for row in df.itertuples():
-                    t = row.arrival_time
-                    dest_sat = str(row.dest_satellite) if pd.notna(row.dest_satellite) else 'None'
-                    if dest_sat == 'None':
-                        if curr_sat is not None:
-                            durations.append((t - sat_start_time).total_seconds())
-                            curr_sat = None
-                    else:
-                        if row.event_type in ['inter_ho', 'init_con']:
-                            if curr_sat is not None:
-                                durations.append((t - sat_start_time).total_seconds())
-                            curr_sat = dest_sat
-                            sat_start_time = t
-            except Exception: pass
-        return durations
-
-    base_serv = get_service_times(dir_base_df)
-    sdn_serv = get_service_times(dir_sdn_df)
-    if base_serv and sdn_serv:
-        plt.figure(figsize=(8, 5), dpi=300)
-        if min(base_serv) != max(base_serv): sns.kdeplot(data=base_serv, label='Baseline (Greedy)', color='#d62728', fill=True, alpha=0.3)
-        if min(sdn_serv) != max(sdn_serv): sns.kdeplot(data=sdn_serv, label='Proposed SDN', color='#1f77b4', fill=True, alpha=0.5)
-        plt.title('Average Satellite Service Time Comparison')
-        plt.xlabel('Continuous Connection Time on Single Satellite [s]')
-        plt.ylabel('Probability Density')
-        plt.legend(); plt.grid(True, linestyle=':', alpha=0.7); plt.tight_layout()
-        plt.savefig(os.path.join(comp_out_dir, "comp_3_service_time.pdf")); plt.close()
-
-    # --- 12F: COMPARAZIONE THROUGHPUT MEDIO (CON LABEL CHIARE) ---
+    print("    -> Plotting Throughput...")
     def get_avg_throughput(folder_path):
+        """ Extracts and averages the downlink throughput across all UEs from the specified directory. """
         ues_thr = []
+        if not os.path.exists(folder_path): return []
         for file_path in Path(folder_path).glob('*.csv'):
             try:
                 df = pd.read_csv(file_path)
@@ -970,75 +812,351 @@ if comparative_plots:
             except Exception: pass
         if not ues_thr: return []
         min_len = min(len(t) for t in ues_thr)
-        ues_thr = [t[:min_len] for t in ues_thr]
-        return np.mean(ues_thr, axis=0).tolist()
+        return np.mean([t[:min_len] for t in ues_thr], axis=0).tolist()
 
-    base_thr_avg = get_avg_throughput(dir_base_thr)
-    sdn_thr_avg = get_avg_throughput(dir_sdn_thr)
-    if base_thr_avg and sdn_thr_avg:
-        min_time = min(len(base_thr_avg), len(sdn_thr_avg))
-        tv = pd.date_range(start=simTimeStart, periods=min_time, freq='1s')
-        plt.figure(figsize=(10, 5), dpi=300)
-        plt.plot(tv, base_thr_avg[:min_time], label='Baseline (Greedy Max-Elev)', color='#d62728', linestyle='--', alpha=0.8)
-        plt.plot(tv, sdn_thr_avg[:min_time], label='Proposed Hybrid SDN', color='#1f77b4', linewidth=2)
-        plt.title('Global Average Downlink Throughput Comparison')
-        plt.xlabel('Simulation Time')
-        plt.ylabel('Average DL Throughput [Mbps]')
-        plt.legend(loc='lower right'); plt.grid(True, linestyle=':', alpha=0.7)
-        plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
-        plt.tight_layout()
-        plt.savefig(os.path.join(comp_out_dir, "comp_5_throughput_time.pdf")); plt.close()
+    plt.figure(figsize=(12, 6), dpi=300)
+    for key, info in dirs.items():
+        avg_thr = get_avg_throughput(info["thr"])
+        if avg_thr:
+            min_time = min(len(avg_thr), len(time_vector))
+            plt.plot(time_vector[:min_time], avg_thr[:min_time], 
+                     label=info["label"], color=info["color"], linestyle=info["style"], linewidth=2.5 if key == "Passive_Proposed" else 1.5)
+            
+    plt.title('Global Average Downlink Throughput Comparison')
+    plt.xlabel('Simulation Time')
+    plt.ylabel('Average DL Throughput [Mbps]')
+    plt.legend(loc='lower right')
+    plt.grid(True, linestyle=':', alpha=0.7)
+    plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+    plt.tight_layout()
+    plt.savefig(os.path.join(comp_out_dir, "comp_4way_1_throughput.pdf")); plt.close()
 
-    # --- 12G: COMPARAZIONE SATELLITE LOAD DISTRIBUTION (CONGESTIONE) ---
-    print("    Elaborazione Load Distribution comparativo in corso...")
-    def get_load_distribution(folder_path):
+    print("    -> Plotting Average Satellite Load...")
+    def get_avg_sat_load(folder_path):
+        """ Calculates the average number of UEs connected per visible satellite over time to evaluate network balance. """
+        if not os.path.exists(folder_path): return []
+        
         load_matrix = {sec: {} for sec in range(total_seconds + 1)}
         for file_path in Path(folder_path).glob('*.csv'):
             try:
                 df = pd.read_csv(file_path)
                 if df.empty: continue
-                df['arrival_time'] = pd.to_datetime(df['arrival_time'], errors='coerce').dt.tz_localize(None)
+                df['arrival_time'] = pd.to_datetime(df['arrival_time'], format='mixed', errors='coerce').dt.tz_localize(None)
                 df = df.sort_values('arrival_time')
                 for row, next_row in zip(df.itertuples(), df.iloc[1:].itertuples()):
                     sat = str(row.dest_satellite)
+                    
                     if sat != 'None' and pd.notna(sat):
                         start_sec = max(0, min(int((row.arrival_time - sim_start_pd).total_seconds()), total_seconds))
                         end_sec = max(0, min(int((next_row.arrival_time - sim_start_pd).total_seconds()), total_seconds))
+                        
                         for sec in range(start_sec, end_sec):
-                            if sat not in load_matrix[sec]: load_matrix[sec][sat] = 0
+                            if sat not in load_matrix[sec]: 
+                                load_matrix[sec][sat] = 0
                             load_matrix[sec][sat] += 1
             except Exception: pass
+            
+        avg_l = [np.mean(list(load_matrix[sec].values())) if load_matrix[sec] else 0 for sec in range(total_seconds)]
+        return avg_l
 
-        max_l, avg_l = [], []
-        for sec in range(total_seconds):
-            active_sats = load_matrix[sec]
-            if active_sats:
-                max_l.append(max(active_sats.values()))
-                avg_l.append(sum(active_sats.values()) / len(active_sats))
-            else:
-                max_l.append(0); avg_l.append(0)
-        return max_l, avg_l
-
-    b_max, b_avg = get_load_distribution(dir_base_df)
-    s_max, s_avg = get_load_distribution(dir_sdn_df)
+    plt.figure(figsize=(12, 6), dpi=300)
+    for key, info in dirs.items():
+        avg_l = get_avg_sat_load(info["df"])
+        if avg_l:
+            plt.plot(time_vector, avg_l, label=info["label"], color=info["color"], linestyle=info["style"], linewidth=2)
+            
+    plt.title('Network Congestion: Average Load per Satellite Comparison')
+    plt.ylabel('Average Number of Connected UEs on a Single Satellite')
+    plt.xlabel('Simulation Time')
     
-    if b_max and s_max:
-        plt.figure(figsize=(12, 6), dpi=300)
-        # Assi della baseline in rosso
-        plt.plot(time_vector, b_max, label="Baseline: Max UEs on single Sat", color='firebrick', linestyle='--')
-        # Assi del tuo SDN in blu
-        plt.plot(time_vector, s_max, label="SDN Proposed: Max UEs on single Sat", color='darkblue', linewidth=2)
-        
-        plt.title('Network Congestion: Maximum Load per Satellite Comparison')
-        plt.ylabel('Number of Connected UEs on a Single Node')
-        plt.xlabel('Simulation Time')
-        plt.grid(True, alpha=0.5); plt.legend(loc='upper right')
-        plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
-        
-        # Linea del Capacity Limit di Shannon a 150
-        plt.axhline(y=150, color='black', linestyle='-.', alpha=0.8, label='Shannon Capacity Hard Cap')
-        
-        plt.tight_layout()
-        plt.savefig(os.path.join(comp_out_dir, "comp_7_satellite_load.pdf")); plt.close()
+    plt.axhline(y=150, color='black', linestyle='-', alpha=0.9, label='Ideal Satellite Capacity Threshold')
+    
+    plt.grid(True, alpha=0.5)
+    plt.legend(loc='upper right')
+    plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+    plt.tight_layout()
+    plt.savefig(os.path.join(comp_out_dir, "comp_4way_2_load.pdf"))
+    plt.close()
 
-    print("    Comparative plotting completed!\n")
+    print("    -> Plotting Service Time...")
+    def get_service_times(folder_path):
+        """ Computes the continuous duration a UE remains connected to a satellite before triggering a new handover. """
+        cluster_sat_durations = []
+        if not os.path.exists(folder_path): return []
+        for file_path in Path(folder_path).glob('*.csv'):
+            try:
+                df = pd.read_csv(file_path)
+                if df.empty: continue
+                
+                df['arrival_time'] = pd.to_datetime(df['arrival_time'], format='mixed', errors='coerce').dt.tz_localize(None)
+                df = df.sort_values('arrival_time')
+                
+                curr_sat = None
+                sat_start_time = None
+                
+                for row in df.itertuples():
+                    t = row.arrival_time
+                    dest_sat = row.dest_satellite if pd.notna(row.dest_satellite) and str(row.dest_satellite) != 'None' else None
+
+                    if dest_sat is None:
+                        if curr_sat is not None:
+                            cluster_sat_durations.append((t - sat_start_time).total_seconds())
+                            curr_sat = None
+                    else:
+                        if row.event_type == 'inter_ho' or row.event_type == 'init_con':
+                            if curr_sat is not None: 
+                                cluster_sat_durations.append((t - sat_start_time).total_seconds())
+                            curr_sat = dest_sat
+                            sat_start_time = t
+            except Exception: pass
+            
+        if not cluster_sat_durations: return [0]
+        return cluster_sat_durations
+
+    plt.figure(figsize=(13, 6), dpi=300)
+    has_labels = False
+    markers = ['*', 'o', 's', '^']
+    marker_idx = 0
+
+    for key, info in dirs.items():
+        times = get_service_times(info["df"])
+        if times:
+            if min(times) != max(times) and len(times) > 1:
+                ax = sns.kdeplot(data=times, label=info["label"], color=info["color"], linestyle=info["style"], linewidth=2, fill=True, alpha=0.2, clip=(0, None), bw_adjust=1.2)
+                lines = ax.get_lines()
+                if lines:
+                    last_line = lines[-1]
+                    x_data = last_line.get_xdata()
+                    y_data = last_line.get_ydata()
+                    peak_idx = np.argmax(y_data)
+                    peak_x = x_data[peak_idx]
+                    peak_y = y_data[peak_idx]
+                    plt.plot(peak_x, peak_y, marker=markers[marker_idx % len(markers)], markersize=14 if markers[marker_idx % len(markers)] == '*' else 10, markeredgecolor='black', color=info["color"])
+                    offset_x = (max(x_data) - min(x_data)) * 0.015
+                    plt.text(peak_x + offset_x, peak_y, f"{peak_x:.1f}", color=info["color"], fontsize=10, va='bottom', fontweight='bold')
+                has_labels = True
+                marker_idx += 1
+            else:
+                plt.axvline(x=times[0], color=info["color"], label=f'{info["label"]} (Constant: {times[0]:.1f}s)', linestyle=info["style"], linewidth=2.5)
+                has_labels = True
+                
+    plt.title('Probability Density of Service Time - 4-Way Comparison')
+    plt.xlabel('Service Time [s]')
+    plt.ylabel('Probability Density')
+    plt.grid(axis='y', color='#E0E0E0', linestyle='-')
+    plt.grid(axis='x', visible=False)
+    if has_labels: plt.legend(title='Architecture', bbox_to_anchor=(1.02, 1), loc='upper left')
+    plt.tight_layout()
+    plt.savefig(os.path.join(comp_out_dir, "comp_4way_3_service_time.pdf"), bbox_inches='tight')
+    plt.close()
+
+    print("    -> Plotting Handover Counts PDF...")
+    def get_ho_counts(folder_path, ho_type):
+        """ Tallies the absolute number of handovers of a specific type executed by each UE. """
+        ho_counts = []
+        if not os.path.exists(folder_path): return []
+        for file_path in Path(folder_path).glob('*.csv'):
+            try:
+                df = pd.read_csv(file_path)
+                count = len(df[df['event_type'] == ho_type])
+                ho_counts.append(count)
+            except Exception: pass
+        return ho_counts
+
+    plt.figure(figsize=(10, 5), dpi=300)
+    has_labels = False
+    for key, info in dirs.items():
+        counts = get_ho_counts(info["df"], 'intra_ho')
+        if counts:
+            if min(counts) != max(counts): 
+                sns.kdeplot(x=counts, label=info["label"], color=info["color"], linestyle=info["style"], fill=True, alpha=0.1, linewidth=2, clip=(0, None), bw_adjust=1.5)
+                has_labels = True
+            else:
+                plt.axvline(x=counts[0], color=info["color"], label=f'{info["label"]} (Constant: {counts[0]})', linestyle=info["style"], linewidth=2)
+                has_labels = True
+    plt.title('PDF of Intra-Satellite Handovers per UE')
+    plt.xlabel('Number of Handovers')
+    plt.ylabel('Probability Density')
+    if has_labels: plt.legend()
+    plt.grid(True, linestyle=':', alpha=0.7)
+    plt.tight_layout()
+    plt.savefig(os.path.join(comp_out_dir, "comp_4way_4a_intra_rate.pdf")); plt.close()
+
+    plt.figure(figsize=(10, 5), dpi=300)
+    has_labels = False
+    for key, info in dirs.items():
+        counts = get_ho_counts(info["df"], 'inter_ho')
+        if counts:
+            if min(counts) != max(counts):
+                sns.kdeplot(x=counts, label=info["label"], color=info["color"], linestyle=info["style"], fill=True, alpha=0.1, linewidth=2, clip=(0, None), bw_adjust=1.5)
+                has_labels = True
+            else:
+                plt.axvline(x=counts[0], color=info["color"], label=f'{info["label"]} (Constant: {counts[0]})', linestyle=info["style"], linewidth=2)
+                has_labels = True
+    plt.title('PDF of Inter-Satellite Handovers per UE')
+    plt.xlabel('Number of Handovers')
+    plt.ylabel('Probability Density')
+    if has_labels: plt.legend()
+    plt.grid(True, linestyle=':', alpha=0.7)
+    plt.tight_layout()
+    plt.savefig(os.path.join(comp_out_dir, "comp_4way_4b_inter_rate.pdf")); plt.close()
+
+    print("    -> Plotting Handover Durations...")
+    def get_ho_durations(folder_path, ho_type):
+        """ Calculates the mean execution duration for specific handover processes to measure system latency. """
+        ho_dur = []
+        if not os.path.exists(folder_path): return []
+        for file_path in Path(folder_path).glob('*.csv'):
+            try:
+                df = pd.read_csv(file_path)
+                df_ho = df[df['event_type'] == ho_type]
+                if not df_ho.empty:
+                    arr = pd.to_datetime(df_ho['arrival_time'], format='mixed', errors='coerce').dt.tz_localize(None)
+                    dep = pd.to_datetime(df_ho['departure_time'], format='mixed', errors='coerce').dt.tz_localize(None)
+                    
+                    durations = (dep - arr).dt.total_seconds() * 1000
+                    mean_val = durations.mean()
+                    if pd.notna(mean_val):
+                        ho_dur.append(mean_val)
+            except Exception: pass
+        return ho_dur
+
+    def plot_duration(ho_type, title, filename):
+        """ Helper function to plot execution duration distributions. """
+        plt.figure(figsize=(10, 5), dpi=300)
+        has_labels = False
+        markers = ['*', 'o', 's', '^']
+        marker_idx = 0
+        
+        for key, info in dirs.items():
+            durations = get_ho_durations(info["df"], ho_type)
+            if durations:
+                if (max(durations) - min(durations)) > 0.1 and len(durations) > 1:
+                    ax = sns.kdeplot(
+                        data=durations, 
+                        label=info["label"], 
+                        color=info["color"], 
+                        linestyle=info["style"], 
+                        linewidth=2, 
+                        fill=True, 
+                        alpha=0.2, 
+                        clip=(0, None),
+                        bw_adjust=1.5
+                    )
+                    
+                    lines = ax.get_lines()
+                    if lines:
+                        last_line = lines[-1]
+                        x_data = last_line.get_xdata()
+                        y_data = last_line.get_ydata()
+                        
+                        peak_idx = np.argmax(y_data)
+                        peak_x = x_data[peak_idx]
+                        peak_y = y_data[peak_idx]
+                        
+                        plt.plot(
+                            peak_x, peak_y, 
+                            marker=markers[marker_idx % len(markers)],
+                            markersize=14 if markers[marker_idx % len(markers)] == '*' else 10, 
+                            markeredgecolor='black', 
+                            color=info["color"]
+                        )
+                        
+                        offset_x = (max(x_data) - min(x_data)) * 0.015
+                        plt.text(peak_x + offset_x, peak_y, f"{peak_x:.1f}", color=info["color"], fontsize=10, va='bottom', fontweight='bold')
+                    
+                    has_labels = True
+                    marker_idx += 1
+                else:
+                    plt.axvline(x=durations[0], color=info["color"], label=f'{info["label"]}', linestyle=info["style"], linewidth=2.5)
+                    has_labels = True
+
+        plt.title(title)
+        plt.xlabel('Execution Duration [ms]')
+        plt.ylabel('Probability Density')
+        plt.grid(axis='y', color='#E0E0E0', linestyle='-')
+        plt.grid(axis='x', visible=False)
+        if has_labels: 
+            plt.legend(title='Architecture', bbox_to_anchor=(1.02, 1), loc='upper left')
+            
+        plt.tight_layout()
+        plt.savefig(os.path.join(comp_out_dir, filename), bbox_inches='tight')
+        plt.close()
+
+    plot_duration('intra_ho', 'Intra-Satellite Handover Duration Comparison', 'comp_4way_5a_intra_duration.pdf')
+    plot_duration('inter_ho', 'Inter-Satellite Handover Duration Comparison', 'comp_4way_5b_inter_duration.pdf')
+
+    print("    -> Plotting Out of Service Time...")
+    def get_oos_durations(folder_path):
+        """ Evaluates network stability by extracting the duration of contiguous Out of Service (OOS) link failures. """
+        oos_times = []
+        if not os.path.exists(folder_path): return [0] 
+        
+        for file_path in Path(folder_path).glob('*.csv'):
+            try:
+                df = pd.read_csv(file_path)
+                if df.empty: continue
+                
+                df['arrival_time'] = pd.to_datetime(df['arrival_time'], format='mixed', errors='coerce').dt.tz_localize(None)
+                df = df.sort_values('arrival_time')
+                out_serv_start_time = None
+                
+                for row in df.itertuples():
+                    t = row.arrival_time
+                    dest_sat = row.dest_satellite if pd.notna(row.dest_satellite) and str(row.dest_satellite) != 'None' else None
+
+                    if dest_sat is None:
+                        if out_serv_start_time is None: out_serv_start_time = t
+                    else:
+                        if out_serv_start_time is not None:
+                            duration = (t - out_serv_start_time).total_seconds()
+                            if duration > 0:
+                                oos_times.append(duration)
+                            out_serv_start_time = None 
+            except Exception: pass
+            
+        if not oos_times: return [0]
+        return oos_times
+
+    plt.figure(figsize=(13, 6), dpi=300)
+    has_labels = False
+    markers = ['*', 'o', 's', '^']
+    marker_idx = 0
+
+    for key, info in dirs.items():
+        durations = get_oos_durations(info["df"])
+        
+        if durations:
+            if min(durations) != max(durations) and len(durations) > 1:
+                ax = sns.kdeplot(data=durations, label=info["label"], color=info["color"], linestyle=info["style"], linewidth=2, fill=True, alpha=0.2, clip=(0, None), bw_adjust=1.2)
+                lines = ax.get_lines()
+                if lines:
+                    last_line = lines[-1]
+                    x_data = last_line.get_xdata()
+                    y_data = last_line.get_ydata()
+                    peak_idx = np.argmax(y_data)
+                    peak_x = x_data[peak_idx]
+                    peak_y = y_data[peak_idx]
+                    plt.plot(peak_x, peak_y, marker=markers[marker_idx % len(markers)], markersize=14 if markers[marker_idx % len(markers)] == '*' else 10, markeredgecolor='black', color=info["color"])
+                    offset_x = (max(x_data) - min(x_data)) * 0.015
+                    plt.text(peak_x + offset_x, peak_y, f"{peak_x:.1f}", color=info["color"], fontsize=10, va='bottom', fontweight='bold')
+                has_labels = True
+                marker_idx += 1
+            else:
+                plt.axvline(x=durations[0], color=info["color"], label=f'{info["label"]}', linestyle=info["style"], linewidth=2.5)
+                has_labels = True
+
+    plt.title('Probability Density of Out of Service (OOS) Time - 4-Way Comparison')
+    plt.xlabel('Continuous Out of Service Duration [s]')
+    plt.ylabel('Probability Density')
+    plt.grid(axis='y', color='#E0E0E0', linestyle='-')
+    plt.grid(axis='x', visible=False)
+    
+    if has_labels: 
+        plt.legend(title='Architecture', bbox_to_anchor=(1.02, 1), loc='upper left')
+    
+    plt.tight_layout()
+    plt.savefig(os.path.join(comp_out_dir, "comp_4way_6_oos_time.pdf"), bbox_inches='tight')
+    plt.close()
+    
+    print("    4-Way Comparative plotting completed!\n")
