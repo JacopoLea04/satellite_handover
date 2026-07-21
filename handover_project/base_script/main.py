@@ -17,7 +17,7 @@ which internally instantiates the SDN Controller. It also performs a bootstrap p
 
 SIM_LABEL = "sdn"  
 
-df_name_1 = "250km_sc9_padova.csv" 
+df_name_1 = "100km_sc9_padova.csv" 
 ho_condition_1 = ("ELEVATION", 30)
 
 sat_selection_condition_1 = "PREHO"
@@ -33,8 +33,8 @@ servers = 1
 scenario = sc9_parameters
 handover_timer = 40
 
-beam_size_km = 250
-num_beams = 25
+beam_size_km = 100
+num_beams = 9
 
 parser = argparse.ArgumentParser(description="Satellite SDN Simulation Script")
 parser.add_argument('--servers', type=int, default=servers, help='Number of servers per node')

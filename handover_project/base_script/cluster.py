@@ -99,7 +99,7 @@ class Cluster:
         self.sdn_controller.run_optimization(time, service_sats, visible_sats_for_each_minicluster)
         return service_sats
 
-    def monitor(self, time, service_sats, ho_condition, sat_selection_condition):
+    def monitor(self, time, service_sats, ho_condition=None, sat_selection_condition=None):
         """
         Represents the core operational loop executed at each time step. 
         It evaluates the physical geometry of the constellation, updates UE Markov traffic states, applies EMA-filtered Gaussian noise to the physical layer metrics, and models the Slotted ALOHA RACH protocol including collision detection and exponential backoff mechanisms. 
@@ -149,6 +149,7 @@ class Cluster:
                 
                 ue.update_ema_filters(raw_snr_dl, raw_snr_ul, raw_elev)
 
+        # Slotted ALOHA RACH Protocol Evaluation
         rach_attempts = {}
         for mini_cluster in self.list_beams:
             for ue in mini_cluster.list_ues:
@@ -187,6 +188,7 @@ class Cluster:
                 
                 is_in_ho = ue.remaining_handover_execution_time > 0
                 
+                # RACH Collision Penalty (Exponential Backoff)
                 if (not was_in_ho) and is_in_ho and (ue.id in collided_ues):
                     backoff_delay_ms = random.randint(500, 1500) 
                     ue.remaining_handover_execution_time += backoff_delay_ms
@@ -203,6 +205,7 @@ class Cluster:
                             elev_old = utils.get_elevation(self.frame, round_time - timedelta(seconds=1), curr_sat.name, mini_cluster.position)
                             derivata_elev = ue.ema_elevation - elev_old
                             
+                            # Predictive Emergency Trigger
                             if derivata_elev < 0:
                                 t_crit = (ue.ema_elevation - self.elevation_threshold) / abs(derivata_elev)
                                 if t_crit <= 1.0:
@@ -212,7 +215,9 @@ class Cluster:
                             pass
                 if trigger_sdn: break
 
-        if trigger_sdn and sat_selection_condition == "PREHO":
+        # The SDN controller inherently handles whether to run Proposed or Baseline 
+        # based on self.SIMULATION_MODE defined in its __init__
+        if trigger_sdn:
             self.sdn_controller.run_optimization(time, service_sats, visible_sats_for_each_minicluster)
 
         self.save_instant_throughput(time)

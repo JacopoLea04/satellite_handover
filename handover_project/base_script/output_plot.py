@@ -8,24 +8,28 @@ from pathlib import Path
 from scipy.stats import gaussian_kde
 import numpy as np
 import re
-
+import random
 import seaborn as sns 
 
 pd.options.mode.chained_assignment = None
 
-visible_sats_over_time = False
-average_handover_rate = False
-average_handover_duration = False
-average_service_time = False
-ho_handled = False
-out_of_service = False
-get_throuthput_ho_v2 = False
-cdf_throughput = False
-ping_pong_handovers = False
-doppler_shift_dist = False
-comparative_plots = True
-save_plot_values = True
-USE_PREHO_DATA = True
+USE_PREHO_DATA = True             # True: Legge i dati SDN. False: Legge i dati Baseline.
+save_plot_values = False          # Salva i valori dei grafici singoli in formato CSV.
+
+visible_sats_over_time = True     # 1. Quanti satelliti e beam sono visibili
+average_handover_rate = True      # 2. Numero medio di handover (PDF)
+average_handover_duration = True # 3. Durata media dell'esecuzione dell'handover
+average_service_time = True     # 4. Tempo medio di servizio continuo
+ho_handled = True                 # 5. Carico di segnalazione (HO gestiti) per satellite
+out_of_service = True            # 6. Durata dei periodi di Out of Service (OOS)
+get_throuthput_ho_v2 = True      # 7. Throughput medio nel tempo con intervallo di confidenza
+cdf_throughput = True            # 8. CDF del Throughput (Standard IEEE col 5% edge)
+ping_pong_handovers = True       # 9. Statistiche sugli handover Ping-Pong
+doppler_shift_dist = True        # 10. Distribuzione (KDE) del Doppler Shift
+doppler_shifts = True            # 11. Doppler Shift nel tempo (DL/UL) con focus event
+
+# 2. Grafici Comparativi (Il cuore del Paper IEEE)
+comparative_plots = False
 
 if USE_PREHO_DATA:
     print("\n--- ANALISI DEI DATI PREDICTIVE HANDOVER (PREHO) ---")
@@ -40,40 +44,10 @@ else:
 
 os.makedirs(output_folder, exist_ok=True)
 
-df_name = "250km_sc9_padova.csv"
-import random
 
-pd.options.mode.chained_assignment = None  # default='warn'
-
-# ========================================================================================================= # 
-
-# 1. How many satellites in visibility over time
-visible_sats_over_time = True
-# 2. Average handover rate 
-average_handover_rate = True
-# 3. Average handover duration
-average_handover_duration = True
-# 4. Average service time before the next handover event
-average_service_time = True
-# 5. Number of handover processes handled by each satellite
-ho_handled = True
-# 6. Average number and duration of out of services
-out_of_service = True
-# 7  Throughput considering HO outage time 
-get_throuthput_ho_v2 = True
-# 8. Number of ping-pong handovers
-ping_pong_handovers = True
-# 9. Doppler Shifts
-doppler_shifts = True
-
-# Save the results into a csv
-save_plot_values = False
-
-
-# ================================================================================================
 
 # dataframes parameters
-df_name = "100km_25beams_sc9_padova.csv"
+df_name = "100km_sc9_padova.csv"
 padova_lat, padova_lon = 45.40996, 11.89261
 dfnames = [df_name] 
 fnames = ["padova"]
@@ -85,11 +59,13 @@ num_ues_label = 300
 simTimeStart = datetime(2026, 2, 19, 0, 0, 0) 
 simTimeEnd = datetime(2026, 2, 19, 0, 30, 0) 
 
-beam_size_km = 250
-num_beams = 25
+beam_size_km = 100
+num_beams = 9
 padova_positions = utils.calculate_beams_grid(padova_lat, padova_lon, beam_size_km, num_beams)
 
 colors1 = ['skyblue', 'lightcoral', 'palegreen', 'mocassin', 'plum', 'tan', 'lightpink', 'lightgray', 'darkkhaki', 'paleturquoise']
+# Secondary color palette for UL plots (ensure at least as many colors as clusters)
+colors2 = ['navy', 'crimson', 'green', 'chocolate', 'purple', 'saddlebrown', 'deeppink', 'gray', 'olive', 'teal']
 
 if visible_sats_over_time:
     """
@@ -604,6 +580,7 @@ if get_throuthput_ho_v2:
         
         ax.plot(time_vector, avg_thr, label=f"{fname} (Mean)", color=plt.cm.tab10(i))
         ax.fill_between(time_vector, (avg_thr - ci_95), (avg_thr + ci_95), color=plt.cm.tab10(i), alpha=0.2)
+        print(f"   {fname} Average DL Throughput: {np.mean(avg_thr):.2f} Mbit/s")
 
     ax.set_title('Average DL Throughput (with 95% Confidence Interval)')
     ax.set_ylabel('DL Throughput [Mbit/s]')
@@ -787,19 +764,6 @@ if satellite_load_distribution:
     ax.set_ylabel('Number of Connected UEs')
     ax.grid(True, alpha=0.5)
     ax.legend(loc='upper right')
-
-        ax.plot(time_vector, avg_thr, label=f"Cluster {i+1}: {fname}", color=color)
-        print(f"{fname} avg thr: ", np.mean(avg_thr))
-        if(save_plot_values):
-            os.makedirs(os.path.join(output_folder, fname), exist_ok=True)
-            df_export = pd.DataFrame({
-                'Seconds': range(len(avg_thr)),
-                'Timestamp': time_vector,
-                'Cluster_Thr': avg_thr
-            })
-            csv_file_path = os.path.join(output_folder, fname, "7-DL_throughput_ho_values.csv")
-            df_export.to_csv(csv_file_path, index=False)
-
     ax.set_title('Average DL Throughputs over Time - All Clusters')
     ax.set_xlabel('Time')
     ax.set_ylabel('DL Throughput [Mbit/s]')
@@ -1172,6 +1136,9 @@ if comparative_plots:
                                 oos_times.append(duration)
                             out_serv_start_time = None 
             except Exception: pass
+        
+        if not oos_times: return [0]
+        return oos_times
 
 # 8. Number of ping-pong handovers
 if(ping_pong_handovers):
@@ -1185,10 +1152,6 @@ if(ping_pong_handovers):
         for r1, r2 in zip(df.itertuples(), df.iloc[1:].itertuples()):
             ev1 = r1.from_satellite
             ev2 = r2.dest_satellite
-
-            
-        if not oos_times: return [0]
-        return oos_times
 
     plt.figure(figsize=(13, 6), dpi=300)
     has_labels = False
