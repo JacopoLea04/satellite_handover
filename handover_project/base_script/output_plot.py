@@ -47,7 +47,7 @@ os.makedirs(output_folder, exist_ok=True)
 
 
 # dataframes parameters
-df_name = "100km_sc9_padova.csv"
+df_name = "50km_25beams_sc9_padova.csv"
 padova_lat, padova_lon = 45.40996, 11.89261
 dfnames = [df_name] 
 fnames = ["padova"]
@@ -59,8 +59,8 @@ num_ues_label = 300
 simTimeStart = datetime(2026, 2, 19, 0, 0, 0) 
 simTimeEnd = datetime(2026, 2, 19, 0, 30, 0) 
 
-beam_size_km = 100
-num_beams = 9
+beam_size_km = 50
+num_beams = 25
 padova_positions = utils.calculate_beams_grid(padova_lat, padova_lon, beam_size_km, num_beams)
 
 colors1 = ['skyblue', 'lightcoral', 'palegreen', 'mocassin', 'plum', 'tan', 'lightpink', 'lightgray', 'darkkhaki', 'paleturquoise']
@@ -1139,65 +1139,6 @@ if comparative_plots:
         
         if not oos_times: return [0]
         return oos_times
-
-# 8. Number of ping-pong handovers
-if(ping_pong_handovers):
-    print("8. Printing the average number of ping-pong handovers ...")
-    folder_path = Path('Cluster1 dataframes')
-    ping_pong_count = []
-    num_ues = 0
-    for file_path in folder_path.glob('*.csv'):
-        df = pd.read_csv(file_path)
-        count = 0
-        for r1, r2 in zip(df.itertuples(), df.iloc[1:].itertuples()):
-            ev1 = r1.from_satellite
-            ev2 = r2.dest_satellite
-
-    plt.figure(figsize=(13, 6), dpi=300)
-    has_labels = False
-    markers = ['*', 'o', 's', '^']
-    marker_idx = 0
-
-    for key, info in dirs.items():
-        durations = get_oos_durations(info["df"])
-        
-        if durations:
-            if min(durations) != max(durations) and len(durations) > 1:
-                ax = sns.kdeplot(data=durations, label=info["label"], color=info["color"], linestyle=info["style"], linewidth=2, fill=True, alpha=0.2, clip=(0, None), bw_adjust=1.2)
-                lines = ax.get_lines()
-                if lines:
-                    last_line = lines[-1]
-                    x_data = last_line.get_xdata()
-                    y_data = last_line.get_ydata()
-                    peak_idx = np.argmax(y_data)
-                    peak_x = x_data[peak_idx]
-                    peak_y = y_data[peak_idx]
-                    plt.plot(peak_x, peak_y, marker=markers[marker_idx % len(markers)], markersize=14 if markers[marker_idx % len(markers)] == '*' else 10, markeredgecolor='black', color=info["color"])
-                    offset_x = (max(x_data) - min(x_data)) * 0.015
-                    plt.text(peak_x + offset_x, peak_y, f"{peak_x:.1f}", color=info["color"], fontsize=10, va='bottom', fontweight='bold')
-                has_labels = True
-                marker_idx += 1
-            else:
-                plt.axvline(x=durations[0], color=info["color"], label=f'{info["label"]}', linestyle=info["style"], linewidth=2.5)
-                has_labels = True
-
-    plt.title('Probability Density of Out of Service (OOS) Time - 4-Way Comparison')
-    plt.xlabel('Continuous Out of Service Duration [s]')
-    plt.ylabel('Probability Density')
-    plt.grid(axis='y', color='#E0E0E0', linestyle='-')
-    plt.grid(axis='x', visible=False)
-    
-    if has_labels: 
-        plt.legend(title='Architecture', bbox_to_anchor=(1.02, 1), loc='upper left')
-    
-    plt.tight_layout()
-    plt.savefig(os.path.join(comp_out_dir, "comp_4way_6_oos_time.pdf"), bbox_inches='tight')
-    plt.close()
-    
-    print("    4-Way Comparative plotting completed!\n")
-
-    print(f"   Average number of ping-pong handovers: {np.mean(ping_pong_count)}")
-    print("   Completed!\n")
 
 # ========================================================================================================= #
 

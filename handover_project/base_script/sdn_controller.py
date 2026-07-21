@@ -27,12 +27,12 @@ class SDN_Controller:
         
         self.SIMULATION_MODE = 'SDN_PROPOSED'  
         
-        self.WATER_FILLING_LIMIT = 200.0  
+        self.WATER_FILLING_LIMIT = 100.0  
         self.INTRA_HO_PENALTY = 0.95      
         self.INTER_HO_PENALTY = 0.40      
         self.SWITCHING_COST_BONUS = 0.05  
         
-        self.PRE_FILTER_LIMIT = 100.0     
+        self.PRE_FILTER_LIMIT = 80.0     
         self.LOCK_IN_ELEVATION = 40.0     
         self.CRITICAL_ELEVATION = 30.0    
         

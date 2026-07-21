@@ -79,7 +79,7 @@ def main():
     sc6 = False
 
     if sc9:
-        beam_footprint_m = 50_000  # Diametro fascio SC9 [m]
+        beam_footprint_m = 50_000  # Diametro fascio SC9 [m] standard 3GPP
     elif sc6:
         beam_footprint_m = 20_000  # Diametro fascio SC6 [m]
     else:
