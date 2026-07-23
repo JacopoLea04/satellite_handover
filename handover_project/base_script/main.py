@@ -22,7 +22,7 @@ ho_condition_1 = ("ELEVATION", 30)
 
 sat_selection_condition_1 = "PREHO"
 
-enable_elevation_threshold = True
+enable_elevation_threshold = False
 elevation_threshold = 30
 
 simTime = timedelta(minutes=30)  

@@ -1,6 +1,6 @@
 """
 This module defines the Cluster class, which represents a specific geographic area containing multiple beams (mini-clusters) and User Equipments (UEs).
-It serves as the interface between the physical layer and the control plane, managing physical visibility, simulating the Slotted ALOHA RACH protocol with collision handling, generating stochastic Markov traffic, and periodically invoking the centralized SDN Controller for global handover orchestration.
+It serves as the interface between the physical layer and the control plane, managing physical visibility, generating stochastic Markov traffic, and periodically invoking the centralized SDN Controller for global handover orchestration.
 """
 
 from beam import Beam

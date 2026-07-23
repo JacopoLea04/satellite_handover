@@ -69,7 +69,7 @@ def main():
     # Coordinate UE (Target)
     lat_ue, lon_ue = 45.40996, 11.89261  # Porta Portello, Padova, IT
     
-    filename = "100km_sc9_padova"
+    filename = "50km_25beams_sc9_padova"
     cluster_id = 1
     max_workers = None      # Usa tutti i core della CPU disponibili
     cell_dim = 5

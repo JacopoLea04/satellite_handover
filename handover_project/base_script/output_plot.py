@@ -13,23 +13,24 @@ import seaborn as sns
 
 pd.options.mode.chained_assignment = None
 
-USE_PREHO_DATA = True             # True: Legge i dati SDN. False: Legge i dati Baseline.
+USE_PREHO_DATA = True           # True: Legge i dati SDN. False: Legge i dati Baseline.
 save_plot_values = False          # Salva i valori dei grafici singoli in formato CSV.
 
 visible_sats_over_time = True     # 1. Quanti satelliti e beam sono visibili
 average_handover_rate = True      # 2. Numero medio di handover (PDF)
 average_handover_duration = True # 3. Durata media dell'esecuzione dell'handover
 average_service_time = True     # 4. Tempo medio di servizio continuo
-ho_handled = True                 # 5. Carico di segnalazione (HO gestiti) per satellite
-out_of_service = True            # 6. Durata dei periodi di Out of Service (OOS)
-get_throuthput_ho_v2 = True      # 7. Throughput medio nel tempo con intervallo di confidenza
+ho_handled = True                # 5. Carico di segnalazione (HO gestiti) per satellite
+out_of_service = True           # 6. Durata dei periodi di Out of Service (OOS)
+get_throuthput_ho_v2 = True     # 7. Throughput medio nel tempo con intervallo di confidenza
 cdf_throughput = True            # 8. CDF del Throughput (Standard IEEE col 5% edge)
 ping_pong_handovers = True       # 9. Statistiche sugli handover Ping-Pong
-doppler_shift_dist = True        # 10. Distribuzione (KDE) del Doppler Shift
-doppler_shifts = True            # 11. Doppler Shift nel tempo (DL/UL) con focus event
+doppler_shifts = True           # 10. Doppler Shift nel tempo (DL/UL) con focus event
+satellite_load_distribution = True       # 11. Distribuzione del carico di traffico per satellite (KDE)
+beam_footprint_heatmap = True
 
-# 2. Grafici Comparativi (Il cuore del Paper IEEE)
-comparative_plots = False
+# Grafici Comparativi 
+comparative_plots = True
 
 if USE_PREHO_DATA:
     print("\n--- ANALISI DEI DATI PREDICTIVE HANDOVER (PREHO) ---")
@@ -43,8 +44,6 @@ else:
     output_folder = "plots_baseline"
 
 os.makedirs(output_folder, exist_ok=True)
-
-
 
 # dataframes parameters
 df_name = "50km_25beams_sc9_padova.csv"
@@ -64,7 +63,6 @@ num_beams = 25
 padova_positions = utils.calculate_beams_grid(padova_lat, padova_lon, beam_size_km, num_beams)
 
 colors1 = ['skyblue', 'lightcoral', 'palegreen', 'mocassin', 'plum', 'tan', 'lightpink', 'lightgray', 'darkkhaki', 'paleturquoise']
-# Secondary color palette for UL plots (ensure at least as many colors as clusters)
 colors2 = ['navy', 'crimson', 'green', 'chocolate', 'purple', 'saddlebrown', 'deeppink', 'gray', 'olive', 'teal']
 
 if visible_sats_over_time:
@@ -496,11 +494,14 @@ if out_of_service:
         folder_path = Path("Cluster" + str(i+1) + dataframes_folder_suffix)
         cluster_out_serv_durations = []
         
+        # Filtro per ignorare la disconnessione deterministica finale
+        end_threshold = simTimeEnd - timedelta(seconds=60)
+        
         for file_path in folder_path.glob('*.csv'):
             df = pd.read_csv(file_path)
             if df.empty: continue
             
-            df['arrival_time'] = pd.to_datetime(df['arrival_time'], errors='coerce', utc=True)
+            df['arrival_time'] = pd.to_datetime(df['arrival_time'], format='mixed', errors='coerce').dt.tz_localize(None)
             df = df.sort_values('arrival_time')
             out_serv_start_time = None
             
@@ -509,7 +510,8 @@ if out_of_service:
                 dest_sat = row.dest_satellite if pd.notna(row.dest_satellite) and str(row.dest_satellite) != 'None' else None
 
                 if dest_sat is None:
-                    if out_serv_start_time is None: out_serv_start_time = t
+                    if out_serv_start_time is None and t < end_threshold: 
+                        out_serv_start_time = t
                 else:
                     if out_serv_start_time is not None:
                         cluster_out_serv_durations.append((t - out_serv_start_time).total_seconds())
@@ -541,7 +543,7 @@ if out_of_service:
             kde_df = pd.DataFrame(dict([(k, pd.Series(v)) for k, v in csv_data.items()])) 
             kde_df.to_csv(os.path.join(output_folder, fname, "6-out_of_service_time.csv"), index=False)
 
-    ax.set_title(f'Probability Density of Out of Service Time - All Clusters ({period} Period) - {num_ues_label} UEs')
+    ax.set_title(f'Probability Density of Out of Service Time - All Clusters ({period} Period) - {num_ues_label} UEs\n(Esclusa disconnessione finale)')
     ax.set_xlabel('Out of Service Duration [s]')
     ax.set_ylabel('Probability Density')
     ax.grid(axis='y', alpha=0.3)
@@ -659,47 +661,6 @@ if ping_pong_handovers:
     fig.savefig(os.path.join(output_folder, "9-Ping_Pong_Analytics.png"), dpi=300, bbox_inches='tight')
     plt.close('all')
 
-if doppler_shift_dist:
-    """
-    Extracts telemetry variables to plot the probability density distribution of the downlink Doppler shift experienced by the UEs.
-    """
-    print("10. Plotting Doppler Shift Distribution ...")
-    fig, ax = plt.subplots(figsize=(12, 6))
-
-    for i, (df_name_iter, fname) in enumerate(zip(dfnames, fnames)):
-        folder_path = Path("Cluster" + str(i+1) + throughput_folder_suffix)
-        doppler_vals = []
-        
-        for file_path in folder_path.glob('*.csv'):
-            df = pd.read_csv(file_path)
-            if 'doppler_shift_dl_KHz' in df.columns:
-                doppler_vals.extend(df['doppler_shift_dl_KHz'].dropna().tolist())
-
-        if not doppler_vals: 
-            print(f"   Nessun dato Doppler per {fname}. Assicurati che main.py abbia post-processato i dati.")
-            continue
-            
-        color = plt.cm.tab10(i)
-        if len(doppler_vals) > 1 and min(doppler_vals) != max(doppler_vals):
-            kde_dop = gaussian_kde(doppler_vals)
-            x_min_dop, x_max_dop = min(doppler_vals), max(doppler_vals)
-            kde_x_dop = np.linspace(x_min_dop, x_max_dop, 500)
-            kde_y_dop = kde_dop(kde_x_dop)
-
-            ax.plot(kde_x_dop, kde_y_dop, color=color, linewidth=2, label=f"Cluster {i+1} DL Doppler")
-            ax.fill_between(kde_x_dop, kde_y_dop, alpha=0.3, color=color)
-
-    ax.set_title('Probability Density of DL Doppler Shift')
-    ax.set_xlabel('Doppler Shift [kHz]')
-    ax.set_ylabel('Probability Density')
-    ax.grid(axis='both', alpha=0.3)
-    ax.legend()
-    fig.savefig(os.path.join(output_folder, "10-Doppler_Shift_Dist.png"), dpi=300, bbox_inches='tight')
-    plt.close('all')
-    print("   Completed!\n")
-
-satellite_load_distribution = True
-
 if satellite_load_distribution:
     """
     Evaluates network congestion over time by calculating and plotting the maximum, average, and standard deviation of the user load distributed across the visible satellite nodes.
@@ -780,10 +741,10 @@ if satellite_load_distribution:
 
 if comparative_plots:
     """
-    Generates the comprehensive 4-way comparative plots for the IEEE paper. 
-    It loops through pre-computed dataset directories to benchmark the Proposed Hybrid SDN against Active-UE baselines, plotting QoS metrics such as global throughput, average load balancing, service time, and execution durations.
+    Generates the comprehensive 3-way comparative plots for the IEEE paper. 
+    It loops through pre-computed dataset directories to benchmark the Proposed Hybrid SDN against Active-UE baselines.
     """
-    print("12. Generating 4-Way Comparative Plots...")
+    print("12. Generating 3-Way Comparative Plots (SDN vs Active UE)...")
     import seaborn as sns
     import matplotlib.dates as mdates
     import warnings
@@ -792,6 +753,7 @@ if comparative_plots:
     comp_out_dir = "plots_comparison_4way"
     os.makedirs(comp_out_dir, exist_ok=True)
     
+    HARD_CAP_PLOT = 18 # Parametro per la linea di demarcazione
     cluster_idx = 1
     
     dirs = {
@@ -801,14 +763,9 @@ if comparative_plots:
             "color": "#d62728", "style": ":", "label": "Active UE (Max Elev)"
         },
         "Active_AvlThr": {
-            "df": f"Cluster{cluster_idx} dataframes_active_average_throughput",
-            "thr": f"Cluster{cluster_idx} throughput_active_average_throughput",
+            "df": f"Cluster{cluster_idx} dataframes_active_avl_throughput",
+            "thr": f"Cluster{cluster_idx} throughput_active_avl_throughput",
             "color": "#ff7f0e", "style": "-.", "label": "Active UE (Avl Thr)"
-        },
-        "Passive_Baseline": {
-            "df": f"Cluster{cluster_idx} dataframes_baseline",
-            "thr": f"Cluster{cluster_idx} throughput_baseline",
-            "color": "#2ca02c", "style": "--", "label": "Passive SDN (Greedy)"
         },
         "Passive_Proposed": {
             "df": f"Cluster{cluster_idx} dataframes_sdn",
@@ -852,12 +809,12 @@ if comparative_plots:
     plt.tight_layout()
     plt.savefig(os.path.join(comp_out_dir, "comp_4way_1_throughput.pdf")); plt.close()
 
-    print("    -> Plotting Average Satellite Load...")
-    def get_avg_sat_load(folder_path):
-        """ Calculates the average number of UEs connected per visible satellite over time to evaluate network balance. """
+    print("    -> Plotting Maximum Beam Load...")
+    def get_max_beam_load(folder_path):
+        """ Calculates the MAXIMUM number of UEs connected to a SINGLE BEAM over time to evaluate local congestion. """
         if not os.path.exists(folder_path): return []
         
-        load_matrix = {sec: {} for sec in range(total_seconds + 1)}
+        load_matrix_beam = {sec: {} for sec in range(total_seconds + 1)}
         for file_path in Path(folder_path).glob('*.csv'):
             try:
                 df = pd.read_csv(file_path)
@@ -867,30 +824,45 @@ if comparative_plots:
                 for row, next_row in zip(df.itertuples(), df.iloc[1:].itertuples()):
                     sat = str(row.dest_satellite)
                     
-                    if sat != 'None' and pd.notna(sat):
+                    try:
+                        beam = int(float(row.dest_beam_index))
+                    except:
+                        beam = -1
+                    
+                    if sat != 'None' and pd.notna(sat) and beam != -1:
                         start_sec = max(0, min(int((row.arrival_time - sim_start_pd).total_seconds()), total_seconds))
                         end_sec = max(0, min(int((next_row.arrival_time - sim_start_pd).total_seconds()), total_seconds))
                         
                         for sec in range(start_sec, end_sec):
-                            if sat not in load_matrix[sec]: 
-                                load_matrix[sec][sat] = 0
-                            load_matrix[sec][sat] += 1
+                            if sat not in load_matrix_beam[sec]: 
+                                load_matrix_beam[sec][sat] = {}
+                            if beam not in load_matrix_beam[sec][sat]:
+                                load_matrix_beam[sec][sat][beam] = 0
+                            load_matrix_beam[sec][sat][beam] += 1
             except Exception: pass
             
-        avg_l = [np.mean(list(load_matrix[sec].values())) if load_matrix[sec] else 0 for sec in range(total_seconds)]
-        return avg_l
+        max_l = []
+        for sec in range(total_seconds):
+            max_val = 0
+            for sat in load_matrix_beam[sec]:
+                if load_matrix_beam[sec][sat]:
+                    current_max = max(load_matrix_beam[sec][sat].values())
+                    if current_max > max_val:
+                        max_val = current_max
+            max_l.append(max_val)
+        return max_l
 
     plt.figure(figsize=(12, 6), dpi=300)
     for key, info in dirs.items():
-        avg_l = get_avg_sat_load(info["df"])
-        if avg_l:
-            plt.plot(time_vector, avg_l, label=info["label"], color=info["color"], linestyle=info["style"], linewidth=2)
+        max_l = get_max_beam_load(info["df"])
+        if max_l:
+            plt.plot(time_vector, max_l, label=info["label"], color=info["color"], linestyle=info["style"], linewidth=2)
             
-    plt.title('Network Congestion: Average Load per Satellite Comparison')
-    plt.ylabel('Average Number of Connected UEs on a Single Satellite')
+    plt.title('Network Congestion: Maximum Load on a Single Beam Comparison')
+    plt.ylabel('Max Number of Connected UEs on a Single Beam')
     plt.xlabel('Simulation Time')
     
-    plt.axhline(y=150, color='black', linestyle='-', alpha=0.9, label='Ideal Satellite Capacity Threshold')
+    plt.axhline(y=HARD_CAP_PLOT, color='black', linestyle='-', alpha=0.9, label=f'SDN Hard Cap ({HARD_CAP_PLOT} UEs)')
     
     plt.grid(True, alpha=0.5)
     plt.legend(loc='upper right')
@@ -961,7 +933,7 @@ if comparative_plots:
                 plt.axvline(x=times[0], color=info["color"], label=f'{info["label"]} (Constant: {times[0]:.1f}s)', linestyle=info["style"], linewidth=2.5)
                 has_labels = True
                 
-    plt.title('Probability Density of Service Time - 4-Way Comparison')
+    plt.title('Probability Density of Service Time - Comparative Analysis')
     plt.xlabel('Service Time [s]')
     plt.ylabel('Probability Density')
     plt.grid(axis='y', color='#E0E0E0', linestyle='-')
@@ -995,7 +967,7 @@ if comparative_plots:
             else:
                 plt.axvline(x=counts[0], color=info["color"], label=f'{info["label"]} (Constant: {counts[0]})', linestyle=info["style"], linewidth=2)
                 has_labels = True
-    plt.title('PDF of Intra-Satellite Handovers per UE')
+    plt.title('PDF of Intra-Satellite Handovers per UE - Comparative Analysis')
     plt.xlabel('Number of Handovers')
     plt.ylabel('Probability Density')
     if has_labels: plt.legend()
@@ -1014,7 +986,7 @@ if comparative_plots:
             else:
                 plt.axvline(x=counts[0], color=info["color"], label=f'{info["label"]} (Constant: {counts[0]})', linestyle=info["style"], linewidth=2)
                 has_labels = True
-    plt.title('PDF of Inter-Satellite Handovers per UE')
+    plt.title('PDF of Inter-Satellite Handovers per UE - Comparative Analysis')
     plt.xlabel('Number of Handovers')
     plt.ylabel('Probability Density')
     if has_labels: plt.legend()
@@ -1107,12 +1079,14 @@ if comparative_plots:
     plot_duration('intra_ho', 'Intra-Satellite Handover Duration Comparison', 'comp_4way_5a_intra_duration.pdf')
     plot_duration('inter_ho', 'Inter-Satellite Handover Duration Comparison', 'comp_4way_5b_inter_duration.pdf')
 
-
-    print("    -> Plotting Out of Service Time...")
+    print("    -> Plotting Out of Service Time (BOXPLOT)...")
     def get_oos_durations(folder_path):
         """ Evaluates network stability by extracting the duration of contiguous Out of Service (OOS) link failures. """
         oos_times = []
-        if not os.path.exists(folder_path): return [0] 
+        if not os.path.exists(folder_path): return []
+        
+        # Filtro per ignorare l'ultimo minuto di simulazione (disconnessione deterministica)
+        end_threshold = simTimeEnd - timedelta(seconds=60)
         
         for file_path in Path(folder_path).glob('*.csv'):
             try:
@@ -1128,7 +1102,8 @@ if comparative_plots:
                     dest_sat = row.dest_satellite if pd.notna(row.dest_satellite) and str(row.dest_satellite) != 'None' else None
 
                     if dest_sat is None:
-                        if out_serv_start_time is None: out_serv_start_time = t
+                        if out_serv_start_time is None and t < end_threshold:
+                            out_serv_start_time = t
                     else:
                         if out_serv_start_time is not None:
                             duration = (t - out_serv_start_time).total_seconds()
@@ -1137,22 +1112,70 @@ if comparative_plots:
                             out_serv_start_time = None 
             except Exception: pass
         
-        if not oos_times: return [0]
         return oos_times
+
+    plt.figure(figsize=(10, 6), dpi=300)
+    data_for_boxplot = []
+    labels_for_boxplot = []
+    colors_for_boxplot = []
+
+    for key, info in dirs.items():
+        durations = get_oos_durations(info["df"])
+        if durations:
+            data_for_boxplot.extend(durations)
+            labels_for_boxplot.extend([info["label"]] * len(durations))
+            colors_for_boxplot.append(info["color"])
+
+    if data_for_boxplot:
+        plot_df = pd.DataFrame({
+            'Architecture': labels_for_boxplot, 
+            'OOS Duration [s]': data_for_boxplot
+        })
+        
+        palette_dict = {info["label"]: info["color"] for key, info in dirs.items()}
+        
+        # Generazione Boxplot
+        sns.boxplot(
+            x='Architecture', 
+            y='OOS Duration [s]', 
+            hue='Architecture',
+            data=plot_df, 
+            palette=palette_dict, 
+            width=0.5, 
+            fliersize=3,
+            legend=False
+        )   
+        
+        plt.title('Out of Service (OOS) Duration - Comparative Analysis\n(Esclusa la disconnessione deterministica finale)')
+        plt.ylabel('Continuous Out of Service Duration [s]')
+        plt.xlabel('')
+        plt.grid(axis='y', color='#E0E0E0', linestyle='--')
+    else:
+        plt.title('Out of Service (OOS) Duration - Comparative Analysis')
+        plt.text(0.5, 0.5, 'Nessun evento OOS rilevato per le architetture selezionate\n(Esclusa la fine della simulazione)', horizontalalignment='center', verticalalignment='center', fontsize=12)
+
+    plt.tight_layout()
+    plt.savefig(os.path.join(comp_out_dir, "comp_4way_6_oos_time.pdf"), bbox_inches='tight')
+    plt.close()
+    
+    print("    Comparative plotting completed!\n")
 
 # ========================================================================================================= #
 
-
 # 9. UL/DL Doppler Shifts over time
-if(doppler_shifts):
-
+if doppler_shifts:
     print("9. Plotting the UL/DL Doppler Shifts over time ...")
 
     plt.figure(figsize=(14, 7))
-    for i, (df_name, fname) in enumerate(zip(dfnames, fnames)):
-        folder_path = Path("Cluster" + str(i+1) + " throughput")
+    for i, (df_name_iter, fname) in enumerate(zip(dfnames, fnames)):
+        # Percorso dinamico basato sulla modalità (SDN o Baseline)
+        folder_path = Path("Cluster" + str(i+1) + throughput_folder_suffix)
         
-        for file_path in folder_path.glob('*.csv'):
+        csv_files = list(folder_path.glob('*.csv'))
+        if not csv_files:
+            continue
+            
+        for file_path in csv_files:
             df = pd.read_csv(file_path)
             
             # Convert time to datetime
@@ -1170,7 +1193,7 @@ if(doppler_shifts):
                 ho_label = f'HO Cluster{str(i+1)}'
                 plt.scatter(handovers['time'], handovers['doppler_shift_ul_KHz'], 
                             color='red', marker='X', s=100, zorder=5, label=ho_label)
-                
+            
             break # Only plot the first file for this cluster
 
     # Format the plot
@@ -1178,7 +1201,12 @@ if(doppler_shifts):
     plt.ylabel('Doppler Shift (KHz)')
     plt.title('DL and UL Doppler Shifts over Time with Handover Events')
     plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
-    plt.legend()
+    
+    # Gestione sicura della legenda per evitare il warning
+    handles, labels = plt.gca().get_legend_handles_labels()
+    if handles:
+        plt.legend()
+        
     plt.grid(True, linestyle='--', alpha=0.7)
     plt.xticks(rotation=45, ha='right')
     plt.tight_layout()
@@ -1188,35 +1216,204 @@ if(doppler_shifts):
     print("   Completed!")
 
 # 9.1 UL/DL Doppler Shifts for a single random satellite connection (focus plot)
-if(doppler_shifts):
+if doppler_shifts:
     print("9.1 Plotting Doppler Shifts for a single random satellite connection ...")
 
-    folder_path = Path("Cluster1 throughput")
-    # take the first CSV file
-    file_path = list(folder_path.glob('*.csv'))[0] 
+    # Percorso dinamico basato sulla modalità
+    folder_path = Path("Cluster1" + throughput_folder_suffix)
     
-    df = pd.read_csv(file_path)
-    df['time'] = pd.to_datetime(df['time'])
-    unique_sats = df['sat.id'].dropna().unique()
-    chosen_sat = random.choice(unique_sats)
-    print(f"    -> Selected satellite: {chosen_sat}")
-    df_sat = df[df['sat.id'] == chosen_sat]
+    # Prevenzione crash se la lista è vuota
+    csv_files = list(folder_path.glob('*.csv'))
+    
+    if csv_files:
+        file_path = csv_files[0] 
+        
+        df = pd.read_csv(file_path)
+        df['time'] = pd.to_datetime(df['time'])
+        unique_sats = df['sat.id'].dropna().unique()
+        
+        if len(unique_sats) > 0:
+            chosen_sat = random.choice(unique_sats)
+            print(f"    -> Selected satellite: {chosen_sat}")
+            df_sat = df[df['sat.id'] == chosen_sat]
 
-    plt.figure(figsize=(12, 6))
-    plt.plot(df_sat['time'], df_sat['doppler_shift_dl_KHz'], label='DL', color='#1f77b4', linewidth=2)
-    plt.plot(df_sat['time'], df_sat['doppler_shift_ul_KHz'], label='UL', color='#ff7f0e', linewidth=2)
+            plt.figure(figsize=(12, 6))
+            plt.plot(df_sat['time'], df_sat['doppler_shift_dl_KHz'], label='DL', color='#1f77b4', linewidth=2)
+            plt.plot(df_sat['time'], df_sat['doppler_shift_ul_KHz'], label='UL', color='#ff7f0e', linewidth=2)
 
-    plt.xlabel('Time')
-    plt.ylabel('Doppler Shi        # --- SAVE PLOT VALUES ---ft (KHz)')
-    plt.title(f'DL and UL Doppler Shifts (Connection to {chosen_sat})')
-    plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
-    plt.legend()
-    plt.grid(True, linestyle='--', alpha=0.7)
-    plt.xticks(rotation=45, ha='right')
-    plt.tight_layout()
+            plt.xlabel('Time')
+            plt.ylabel('Doppler Shift (KHz)') 
+            plt.title(f'DL and UL Doppler Shifts (Connection to {chosen_sat})')
+            plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
+            plt.legend()
+            plt.grid(True, linestyle='--', alpha=0.7)
+            plt.xticks(rotation=45, ha='right')
+            plt.tight_layout()
 
-    combined_file_path = os.path.join(output_folder, "9.1-Doppler Shift Focus.png")
-    plt.savefig(combined_file_path)
+            combined_file_path = os.path.join(output_folder, "9.1-Doppler Shift Focus.png")
+            plt.savefig(combined_file_path)
 
-    print("   Completed!\n")
+            print("   Completed!\n")
+        else:
+            print("   Nessun satellite valido trovato in questo file.")
+    else:
+        print("   [ATTENZIONE] Nessun file CSV trovato per generare il grafico Doppler Focus.")
 
+
+# ========================================================================================================= #
+# 13. SPATIAL WATER-FILLING: FOOTPRINT HEATMAP & BEAM SATURATION OVER TIME
+# ========================================================================================================= #
+
+
+if beam_footprint_heatmap:
+    print("13. Plotting Spatial Water-Filling Heatmap and Beam Saturation ...")
+    
+    # Cartella da analizzare
+    folder_path = Path("Cluster1" + dataframes_folder_suffix)
+    
+    sim_start_pd = pd.to_datetime(simTimeStart)
+    total_seconds = int((simTimeEnd - simTimeStart).total_seconds())
+    
+    # Struttura dati per memorizzare il carico: sec -> sat -> beam -> load
+    load_matrix_beams = {sec: {} for sec in range(total_seconds + 1)}
+    
+    csv_files = list(folder_path.glob('*.csv'))
+    if csv_files:
+        for file_path in csv_files:
+            try:
+                df = pd.read_csv(file_path)
+                if df.empty: continue
+                df['arrival_time'] = pd.to_datetime(df['arrival_time'], format='mixed', errors='coerce').dt.tz_localize(None)
+                df = df.sort_values('arrival_time')
+                
+                for row, next_row in zip(df.itertuples(), df.iloc[1:].itertuples()):
+                    sat = str(row.dest_satellite)
+                    
+                    # Estrazione sicura dell'indice del beam
+                    try:
+                        beam = int(float(row.dest_beam_index))
+                    except:
+                        beam = -1
+                        
+                    if sat != 'None' and pd.notna(sat) and beam != -1:
+                        start_sec = max(0, min(int((row.arrival_time - sim_start_pd).total_seconds()), total_seconds))
+                        end_sec = max(0, min(int((next_row.arrival_time - sim_start_pd).total_seconds()), total_seconds))
+                        
+                        for sec in range(start_sec, end_sec):
+                            if sat not in load_matrix_beams[sec]: 
+                                load_matrix_beams[sec][sat] = {}
+                            if beam not in load_matrix_beams[sec][sat]:
+                                load_matrix_beams[sec][sat][beam] = 0
+                            load_matrix_beams[sec][sat][beam] += 1
+            except Exception as e: 
+                pass
+
+        # Troviamo il satellite e il secondo esatto in cui c'è il massimo carico totale
+        max_total_load = -1
+        best_sec = -1
+        best_sat = None
+        
+        for sec in range(total_seconds):
+            for sat, beams in load_matrix_beams[sec].items():
+                total_load = sum(beams.values())
+                if total_load > max_total_load:
+                    max_total_load = total_load
+                    best_sec = sec
+                    best_sat = sat
+                    
+        if best_sat is not None:
+            print(f"    -> Analisi focalizzata sul satellite {best_sat} al secondo {best_sec} (Totale UEs: {max_total_load})")
+            
+            # --- PLOT 1: LA HEATMAP 5x5 ---
+            heatmap_data = np.zeros((5, 5))
+            beam_loads = load_matrix_beams[best_sec][best_sat]
+            
+            for b_idx in range(25):
+                r = b_idx // 5
+                c = b_idx % 5
+                heatmap_data[r, c] = beam_loads.get(b_idx, 0)
+                
+            plt.figure(figsize=(8, 6), dpi=300)
+            
+            # Colori diversi per far capire se stiamo guardando la SDN o la Baseline
+            cmap = 'YlGnBu' if USE_PREHO_DATA else 'OrRd'
+            vmax = 18 if USE_PREHO_DATA else None # Forza il massimo colore a 18 per SDN
+            
+            ax = sns.heatmap(heatmap_data, annot=True, fmt=".0f", cmap=cmap, 
+                             cbar_kws={'label': 'Numero di UEs Connessi'},
+                             linewidths=1, linecolor='white', square=True,
+                             vmax=vmax) 
+            
+            ax.set_xticks(np.arange(5) + 0.5)
+            ax.set_yticks(np.arange(5) + 0.5)
+            ax.set_xticklabels([f"C{i+1}" for i in range(5)])
+            ax.set_yticklabels([f"R{i+1}" for i in range(5)], rotation=0)
+            
+            mode_name = "SDN Proposed (Hard Cap = 18)" if USE_PREHO_DATA else "Baseline Greedy"
+            plt.title(f'Spatial Water-Filling: Beam Load Distribution\n{best_sat} - {mode_name}')
+            plt.tight_layout()
+            
+            heatmap_file_path = os.path.join(output_folder, "13-Beam_Footprint_Heatmap.png")
+            plt.savefig(heatmap_file_path)
+            plt.close()
+            print("    [+] Heatmap generata!")
+
+            # --- PLOT 2: BEAM SATURATION OVER TIME ---
+            time_vector_sat = pd.date_range(start=simTimeStart, periods=total_seconds, freq='1s')
+            
+            # Troviamo i beam più caldi di questo satellite su tutta la simulazione
+            beam_total_load = {}
+            for sec in range(total_seconds):
+                if best_sat in load_matrix_beams[sec]:
+                    for b_idx, load in load_matrix_beams[sec][best_sat].items():
+                        beam_total_load[b_idx] = beam_total_load.get(b_idx, 0) + load
+                        
+            # Seleziona i 5 beam più caricati
+            top_beams = sorted(beam_total_load.items(), key=lambda x: x[1], reverse=True)[:5]
+            top_beam_indices = [b[0] for b in top_beams]
+            
+            # Forza l'inclusione del beam centrale (indice 12) per il confronto
+            if 12 not in top_beam_indices:
+                top_beam_indices = [12] + top_beam_indices[:4]
+                
+            plt.figure(figsize=(12, 6), dpi=300)
+            
+            for b_idx in top_beam_indices:
+                b_load_series = []
+                for sec in range(total_seconds):
+                    if best_sat in load_matrix_beams[sec]:
+                        b_load_series.append(load_matrix_beams[sec][best_sat].get(b_idx, 0))
+                    else:
+                        b_load_series.append(0)
+                
+                # Applica una leggera media mobile (rolling) per smussare le linee e renderle leggibili
+                b_load_series = pd.Series(b_load_series).rolling(window=5, min_periods=1).mean()
+                
+                is_center = (b_idx == 12)
+                label = f"Beam Centrale (Idx 12)" if is_center else f"Beam Periferico {b_idx}"
+                linewidth = 3 if is_center else 1.5
+                linestyle = '-' if is_center else '--'
+                
+                plt.plot(time_vector_sat, b_load_series, label=label, linewidth=linewidth, linestyle=linestyle)
+                
+            plt.title(f'Dynamic Load Balancing: Saturazione dei Beam nel tempo\nSatellite: {best_sat} - {mode_name}')
+            plt.xlabel('Tempo di Simulazione')
+            plt.ylabel('Numero di UEs Connessi per Beam')
+            
+            if USE_PREHO_DATA:
+                plt.axhline(y=18, color='red', linestyle='-.', alpha=0.8, linewidth=2, label='Hard Cap (Water-Filling = 18)')
+                
+            plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
+            plt.legend(loc='upper right')
+            plt.grid(True, linestyle=':', alpha=0.7)
+            plt.tight_layout()
+            
+            saturation_file_path = os.path.join(output_folder, "14-Beam_Saturation_Over_Time.png")
+            plt.savefig(saturation_file_path)
+            plt.close()
+            print("    [+] Grafico di Saturazione Temporale generato!\n")
+
+        else:
+            print("   Dati non sufficienti (nessun satellite valido identificato).")
+    else:
+        print("   Nessun file CSV trovato per calcolare la heatmap.")
