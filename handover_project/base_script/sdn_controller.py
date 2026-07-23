@@ -23,13 +23,13 @@ class SDN_Controller:
         
         # --- PARAMETRI OTTIMIZZATI PER LA RUN DEFINITIVA ---
         self.WATER_FILLING_LIMIT = 25.0  
-        self.PRE_FILTER_LIMIT = 11.0     
-        self.LOCK_IN_ELEVATION = 40.0    
+        self.PRE_FILTER_LIMIT = 6.0     
+        self.LOCK_IN_ELEVATION = 90.0    
         self.CRITICAL_ELEVATION = 30.0    
         
-        self.INTRA_HO_PENALTY = 0.35      
+        self.INTRA_HO_PENALTY = 0.40      
         self.INTER_HO_PENALTY = 0.20     
-        self.SWITCHING_COST_BONUS = 0.05  
+        self.SWITCHING_COST_BONUS = 0.08  
         
         self.TTT_NORMAL = 2             
         self.TTT_CRITICAL = 1             
