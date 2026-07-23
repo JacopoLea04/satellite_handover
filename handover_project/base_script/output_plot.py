@@ -753,7 +753,7 @@ if comparative_plots:
     comp_out_dir = "plots_comparison_4way"
     os.makedirs(comp_out_dir, exist_ok=True)
     
-    HARD_CAP_PLOT = 18 # Parametro per la linea di demarcazione
+    HARD_CAP_PLOT = 25 # Parametro per la linea di demarcazione
     cluster_idx = 1
     
     dirs = {
@@ -1146,7 +1146,7 @@ if comparative_plots:
             legend=False
         )   
         
-        plt.title('Out of Service (OOS) Duration - Comparative Analysis\n(Esclusa la disconnessione deterministica finale)')
+        plt.title('Out of Service (OOS) Duration - Comparative Analysis')
         plt.ylabel('Continuous Out of Service Duration [s]')
         plt.xlabel('')
         plt.grid(axis='y', color='#E0E0E0', linestyle='--')

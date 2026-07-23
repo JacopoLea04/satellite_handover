@@ -23,12 +23,12 @@ class SDN_Controller:
         
         # --- PARAMETRI OTTIMIZZATI PER LA RUN DEFINITIVA ---
         self.WATER_FILLING_LIMIT = 25.0  
-        self.PRE_FILTER_LIMIT = 6.0     
-        self.LOCK_IN_ELEVATION = 90.0    
+        self.PRE_FILTER_LIMIT = 10.0     
+        self.LOCK_IN_ELEVATION = 40.0    
         self.CRITICAL_ELEVATION = 30.0    
         
-        self.INTRA_HO_PENALTY = 0.40      
-        self.INTER_HO_PENALTY = 0.20     
+        self.INTRA_HO_PENALTY = 0.65      
+        self.INTER_HO_PENALTY = 0.55    
         self.SWITCHING_COST_BONUS = 0.08  
         
         self.TTT_NORMAL = 2             
@@ -177,7 +177,6 @@ class SDN_Controller:
                 if self.weather_state.get(target_sat_name) == 'B': 
                     w_score *= 0.5 
                 
-                # --- LA MAGIA DELL'ELASTIC CAP ---
                 # Penalità classica di Shannon per la banda condivisa
                 w_score *= (1.0 / (v_beam['slot'] + 1.0)) 
                 
