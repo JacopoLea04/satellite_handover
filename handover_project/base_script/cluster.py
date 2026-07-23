@@ -218,7 +218,14 @@ class Cluster:
                     if(sat_elev < elev_threshold):
                         ue.inter_handover_flag = True
 
+                is_ghost_satellite = (curr_sat is not None and index == -1)
+                
+                if (ue.inter_handover_flag or ue.intra_handover_flag) and not is_ghost_satellite:
+                    if random.random() > 0.20:
+                        ue.inter_handover_flag = False
+                        ue.intra_handover_flag = False
 
+                
                 # ============== Performe the handover (if selected) ==============
                 if(ue.inter_handover_flag): # handover to a new beam of a new satellite
 

@@ -12,7 +12,7 @@ import utils
 
 # initial configuration
 df_name_1 = "50km_25beams_sc9_padova.csv"  #"100km_25beams_sc9_padova.csv"
-ho_condition_1 = ("ELEVATION", 30)
+ho_condition_1 = ("VISIBILITY", 30)
 sat_selection_condition_1 = "AVL_THR"
 enable_elevation_threshold = True
 elevation_threshold = 30
@@ -170,9 +170,9 @@ print("Creating the folder with the ue dataframes ...")
 
 
 output_folders = (
-    [f"{cluster.name} dataframes_active_average_throughput" for cluster in clusters] +
-    [f"{cluster.name} throughput_active_average_throughput" for cluster in clusters] +
-    ["Satellite dataframes_active_average_throughput"]
+    [f"{cluster.name} dataframes_active_avl_throughput" for cluster in clusters] +
+    [f"{cluster.name} throughput_active_avl_throughput" for cluster in clusters] +
+    ["Satellite dataframes_active_avl_throughput"]
 )
 
 # if there are old results, delete them
